@@ -1,0 +1,8 @@
+[build]
+  command = "node build.mjs"
+  publish = "dist"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache"

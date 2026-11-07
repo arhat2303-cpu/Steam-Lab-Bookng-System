@@ -1,0 +1,11 @@
+{
+  "name": "steam-lab-booking-system",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Single-printer school STEAM lab request and approval portal",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node tests/scheduler.test.mjs"
+  }
+}
