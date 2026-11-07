@@ -175,7 +175,7 @@ svg { display: block; flex-shrink: 0; }
 .auth-card h2 { margin-bottom: 6px; }
 .auth-card .muted { margin-bottom: 24px; }
 .auth-card .btn-row { margin-top: 20px; }
-.demo-fill-note { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); color: var(--accent-dark); font-size: 0.88rem; font-weight: 650; }
+.auth-note { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); color: var(--accent-dark); font-size: 0.88rem; font-weight: 650; }
 
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .form-field { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
@@ -644,12 +644,31 @@ function sha256Hex(message) {
 function makeSalt() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
 }
-function hashPassword(password, salt) {
-  return sha256Hex(`steamlab.v1|${salt}|${String(password ?? '')}|${salt}`);
+const PASSWORD_HASH_ITERATIONS = 8000;
+
+function normaliseIterations(value) {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 1000 || number > 100000) return PASSWORD_HASH_ITERATIONS;
+  return number;
 }
-function verifyPassword(password, salt, expectedHash) {
-  if (!salt || !expectedHash) return false;
-  const actual = hashPassword(password, salt);
+
+/**
+ * Deterministic, dependency-free iterated salted SHA-256. This is app-layer
+ * password verification, not a server-side session or a hardware-backed KMS.
+ */
+function hashPassword(password, salt, iterations = PASSWORD_HASH_ITERATIONS) {
+  const secret = String(password ?? '');
+  const count = normaliseIterations(iterations);
+  let digest = sha256Hex(`steamlab.v2|${salt}|${secret}|${salt}`);
+  for (let round = 1; round < count; round += 1) {
+    digest = sha256Hex(`steamlab.v2|${salt}|${digest}|${secret}`);
+  }
+  return digest;
+}
+function verifyPassword(password, account) {
+  if (!account || !account.salt || !account.passwordHash) return false;
+  const expectedHash = String(account.passwordHash);
+  const actual = hashPassword(password, account.salt, account.hashIterations);
   if (actual.length !== expectedHash.length) return false;
   let difference = 0;
   for (let i = 0; i < actual.length; i += 1) difference |= actual.charCodeAt(i) ^ expectedHash.charCodeAt(i);
@@ -828,7 +847,7 @@ async function getFile(pointer) {
   }
   if (pointer.backend === 'seed' || pointer.seedKey) {
     const bytes = seedFileBytes(pointer.seedKey || pointer.key, pointer.name);
-    return { bytes, mime: pointer.mime || 'model/stl', name: pointer.name || 'demo-model.stl', backend: 'seed' };
+    return { bytes, mime: pointer.mime || 'model/stl', name: pointer.name || 'model.stl', backend: 'seed' };
   }
   return null;
 }
@@ -866,7 +885,7 @@ function makeAsciiStl(size, label) {
     [0, 4, 7], [0, 7, 3], [1, 2, 6], [1, 6, 5]
   ];
   const fmt = (n) => Number(n).toFixed(4);
-  const lines = [`solid ${label || 'steamlab_demo'}`];
+  const lines = [`solid ${label || 'steamlab_model'}`];
   for (const face of faces) {
     lines.push('  facet normal 0 0 0');
     lines.push('    outer loop');
@@ -874,10 +893,10 @@ function makeAsciiStl(size, label) {
     lines.push('    endloop');
     lines.push('  endfacet');
   }
-  lines.push(`endsolid ${label || 'steamlab_demo'}`);
+  lines.push(`endsolid ${label || 'steamlab_model'}`);
   return lines.join('\n');
 }
-function seedFileBytes(key, name = 'demo-model.stl') {
+function seedFileBytes(key, name = 'model.stl') {
   const size = String(key).includes('bracket') ? 18 : 12;
   return encodeUtf8Bytes(makeAsciiStl(size, String(name).replace(/[^a-z0-9_]/gi, '_').replace(/\.stl$/i, '')));
 }
@@ -1047,6 +1066,7 @@ __SL.decodeLatin1 = decodeLatin1;
 __SL.toBytes = toBytes;
 __SL.sha256Hex = sha256Hex;
 __SL.makeSalt = makeSalt;
+__SL.PASSWORD_HASH_ITERATIONS = PASSWORD_HASH_ITERATIONS;
 __SL.hashPassword = hashPassword;
 __SL.verifyPassword = verifyPassword;
 __SL.stateGet = stateGet;
@@ -1784,8 +1804,7 @@ __SL.estimateFromFile = estimateFromFile;
 /* src/db.js */
 (function () {
 'use strict';
-const { makeSalt, hashPassword, makeId, seedFileBytes, stateGet, stateSet } = __SL;
-const { estimateFromFile } = __SL;
+const { makeSalt, hashPassword, PASSWORD_HASH_ITERATIONS, makeId, stateGet, stateSet } = __SL;
 const DEFAULT_SETTINGS = {
   openTime: '08:00',
   closeTime: '17:00',
@@ -1801,17 +1820,28 @@ const DEFAULT_SETTINGS = {
 const VALID_STATUSES = ['pending', 'approved', 'rejected', 'printing', 'printed', 'handed', 'cancelled'];
 const ACTIVE_STATUSES = ['pending', 'approved', 'printing', 'printed'];
 const VALID_PRIORITIES = ['urgent', 'high', 'normal', 'low'];
-const DEMO_ACCOUNTS = [
-  { key: 'admin', id: 'acc-admin', role: 'admin', name: 'Lab Administrator', loginId: '12345678910', serial: null, password: '12345', autoApprove: false },
-  { key: 'teacher', id: 'acc-teacher1', role: 'teacher', name: 'Ms Rivera', loginId: 'teacher1', serial: 'T-1041', password: 'teach123', autoApprove: false },
-  { key: 'student', id: 'acc-student1', role: 'student', name: 'Avery Chen', loginId: 'student1', serial: 'STU-2001', password: '12345', autoApprove: false },
-  { key: 'student2', id: 'acc-student2', role: 'student', name: 'Jordan Patel', loginId: 'student2', serial: 'STU-2002', password: '12345', autoApprove: true }
+
+/* The two permanent administrator credentials are stored only as iterated salted hashes. */
+const PERMANENT_ADMINS = [
+  {
+    id: 'acc-admin-arhatshah8149',
+    role: 'admin',
+    name: 'Administrator 1',
+    loginId: 'ARHATSHAH8149',
+    salt: '700d7730099c03970b620b022ad82575',
+    passwordHash: '7587034d5f0d1deb6359c1969922ba3ea39f40df376507809490ff9d793a5427',
+    hashIterations: PASSWORD_HASH_ITERATIONS
+  },
+  {
+    id: 'acc-admin-ruthvika20',
+    role: 'admin',
+    name: 'Administrator 2',
+    loginId: 'RUTHVIKA20',
+    salt: 'edb1b5eb720f483b71a2d5893648dbb2',
+    passwordHash: 'a5109b7be61c9de9fb337e0c065afb248a3795b5f5c90cb6d90dc28b7c0d7224',
+    hashIterations: PASSWORD_HASH_ITERATIONS
+  }
 ];
-const DEMO_CREDENTIALS = {
-  admin: { role: 'admin', loginId: '12345678910', serial: '', password: '12345', label: 'username' },
-  teacher: { role: 'teacher', loginId: 'teacher1', serial: 'T-1041', password: 'teach123', label: 'login ID' },
-  student: { role: 'student', loginId: 'student1', serial: 'STU-2001', password: '12345', label: 'login ID' }
-};
 
 let currentDb = null;
 
@@ -1826,6 +1856,10 @@ function isObject(value) {
 function finiteNumber(value, fallback) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
+}
+
+function normaliseSerial(value) {
+  return String(value || '').trim().toUpperCase();
 }
 
 function normaliseSettings(input) {
@@ -1851,133 +1885,69 @@ function normaliseSettings(input) {
     }
   };
 }
+function publicAccount(account) {
+  if (!account) return null;
+  const safe = clone(account);
+  delete safe.password;
+  delete safe.salt;
+  delete safe.passwordHash;
+  delete safe.hashIterations;
+  return safe;
+}
 function createAccountRecord(payload, now = Date.now()) {
   const salt = makeSalt();
+  const role = String(payload.role || '');
+  const serial = role === 'admin' ? null : (normaliseSerial(payload.serial) || null);
   return {
     id: payload.id || makeId('acc'),
-    role: payload.role,
+    role,
     name: String(payload.name || '').trim(),
+    className: role === 'student' ? String(payload.className || '').trim() : '',
     loginId: String(payload.loginId || '').trim(),
     salt,
-    passwordHash: hashPassword(payload.password, salt),
-    serial: payload.serial || null,
-    serialBoundAt: null,
+    passwordHash: hashPassword(payload.password, salt, PASSWORD_HASH_ITERATIONS),
+    hashIterations: PASSWORD_HASH_ITERATIONS,
+    serial,
+    serialAssignedAt: serial ? now : null,
     active: payload.active !== false,
-    autoApprove: Boolean(payload.autoApprove),
+    autoApprove: role === 'student' && Boolean(payload.autoApprove),
+    permanent: Boolean(payload.permanent),
     createdAt: now,
     passwordUpdatedAt: now
   };
 }
-
-function seedFile(name, key, infill, copies, settings, now) {
-  const bytes = seedFileBytes(key, name);
-  const estimate = estimateFromFile({ name, bytes, infill, copies, buildVolume: settings.buildVolume, now });
-  const pointer = {
-    backend: 'seed',
-    key,
-    seedKey: key,
-    name,
-    size: bytes.length,
-    mime: 'model/stl'
-  };
-  return {
-    file: { name, size: bytes.length, mime: 'model/stl', pointer },
-    estimate
-  };
-}
-
-function makeSeedRequest(options) {
-  return {
-    id: options.id,
-    code: options.code,
-    studentId: options.studentId,
-    studentName: options.studentName,
-    title: options.title,
-    notes: options.notes,
-    material: options.material,
-    colour: options.colour,
-    infill: options.infill,
-    copies: options.copies,
-    status: options.status,
-    priority: options.priority || 'normal',
-    submittedAt: options.submittedAt,
-    approvedAt: options.approvedAt || null,
-    approvedBy: options.approvedBy || null,
-    adjustedMinutes: options.adjustedMinutes || null,
-    rejectionReason: null,
-    cancelReason: null,
-    slotConfirmedAt: null,
-    slotConfirmedBy: null,
-    file: options.payload.file,
-    estimate: options.payload.estimate,
-    schedule: { segments: [], reason: 'Waiting for the scheduler', scheduledAt: null, fixed: false, releasedAt: null },
-    workflow: { startedAt: null, printedAt: null, handedAt: null, printMinutes: null },
-    createdAt: options.submittedAt
-  };
-}
-function createSeedDatabase(now = Date.now()) {
+function createFactoryDatabase(now = Date.now()) {
   const settings = clone(DEFAULT_SETTINGS);
-  const accounts = DEMO_ACCOUNTS.map((demo) => createAccountRecord({ ...demo }, now));
-  const serials = [
-    { code: 'STU-2001', role: 'student', status: 'assigned', assignedTo: 'acc-student1', boundAt: null, createdAt: now },
-    { code: 'STU-2002', role: 'student', status: 'assigned', assignedTo: 'acc-student2', boundAt: null, createdAt: now },
-    { code: 'STU-2003', role: 'student', status: 'free', assignedTo: null, boundAt: null, createdAt: now },
-    { code: 'STU-2004', role: 'student', status: 'free', assignedTo: null, boundAt: null, createdAt: now },
-    { code: 'T-1041', role: 'teacher', status: 'assigned', assignedTo: 'acc-teacher1', boundAt: null, createdAt: now },
-    { code: 'T-1042', role: 'teacher', status: 'free', assignedTo: null, boundAt: null, createdAt: now },
-    { code: 'T-1043', role: 'teacher', status: 'free', assignedTo: null, boundAt: null, createdAt: now }
-  ];
-  const approvedPayload = seedFile('demo-cube.stl', 'seed-cube-1', 20, 1, settings, now);
-  const pendingPayload = seedFile('demo-bracket.stl', 'seed-bracket-2', 30, 1, settings, now);
-  const requests = [
-    makeSeedRequest({
-      id: 'req-seed-approved',
-      code: 'SLB-0001',
-      studentId: 'acc-student1',
-      studentName: 'Avery Chen',
-      title: 'Geometry calibration cube',
-      notes: 'Demo job: already approved and scheduled.',
-      material: 'PLA',
-      colour: 'Blue',
-      infill: 20,
-      copies: 1,
-      status: 'approved',
-      priority: 'normal',
-      submittedAt: now - 3 * 86400000,
-      approvedAt: now - 2 * 86400000,
-      approvedBy: 'acc-teacher1',
-      payload: approvedPayload
-    }),
-    makeSeedRequest({
-      id: 'req-seed-pending',
-      code: 'SLB-0002',
-      studentId: 'acc-student2',
-      studentName: 'Jordan Patel',
-      title: 'Desk bracket prototype',
-      notes: 'Demo job: waiting for teacher review.',
-      material: 'PETG',
-      colour: 'Orange',
-      infill: 30,
-      copies: 1,
-      status: 'pending',
-      priority: 'high',
-      submittedAt: now - 86400000,
-      payload: pendingPayload
-    })
-  ];
+  const accounts = PERMANENT_ADMINS.map((admin) => ({
+    ...admin,
+    className: '',
+    serial: null,
+    serialAssignedAt: null,
+    active: true,
+    autoApprove: false,
+    permanent: true,
+    createdAt: now,
+    passwordUpdatedAt: now
+  }));
   return {
-    schema: 'steamlab-db-v1',
-    version: 1,
+    schema: 'steamlab-db-v2',
+    version: 2,
     createdAt: now,
     updatedAt: now,
     settings,
     accounts,
-    serials,
+    serials: [],
     serialBindings: {},
-    requests,
+    requests: [],
     session: null,
-    activity: [{ id: makeId('act'), at: now, actor: 'system', action: 'seed', detail: 'Demo accounts, serials, and two example requests created.' }],
-    counters: { request: 3, account: 5, studentSerial: 2004, teacherSerial: 1043 }
+    activity: [{
+      id: makeId('act'),
+      at: now,
+      actor: 'system',
+      action: 'factory',
+      detail: 'Two permanent administrator accounts created. No student or teacher accounts were pre-created.'
+    }],
+    counters: { request: 1, account: 3, studentSerial: 2000, teacherSerial: 1000 }
   };
 }
 
@@ -1990,7 +1960,8 @@ function validateDatabase(raw) {
     try { candidate = JSON.parse(candidate); } catch (_) { throw new Error('Backup is not valid JSON.'); }
   }
   assert(isObject(candidate), 'Database must be a JSON object.');
-  assert(Number(candidate.version) === 1, 'Database version must be 1.');
+  assert(candidate.schema === 'steamlab-db-v2', 'Database schema must be steamlab-db-v2.');
+  assert(Number(candidate.version) === 2, 'Database version must be 2.');
   assert(Array.isArray(candidate.accounts), 'Database accounts must be an array.');
   assert(Array.isArray(candidate.serials), 'Database serials must be an array.');
   assert(Array.isArray(candidate.requests), 'Database requests must be an array.');
@@ -2000,6 +1971,7 @@ function validateDatabase(raw) {
 
   const accountIds = new Set();
   const loginIds = new Set();
+  const studentSerials = new Set();
   for (const [index, account] of candidate.accounts.entries()) {
     assert(isObject(account), `Account ${index + 1} must be an object.`);
     assert(typeof account.id === 'string' && account.id, `Account ${index + 1} is missing an id.`);
@@ -2007,10 +1979,31 @@ function validateDatabase(raw) {
     assert(typeof account.loginId === 'string' && account.loginId, `Account ${index + 1} is missing a login ID.`);
     assert(typeof account.salt === 'string' && account.salt, `Account ${index + 1} is missing a password salt.`);
     assert(/^[a-f0-9]{64}$/i.test(String(account.passwordHash || '')), `Account ${index + 1} has an invalid password hash.`);
+    const iterations = Number(account.hashIterations);
+    assert(Number.isInteger(iterations) && iterations >= 1000 && iterations <= 100000, `Account ${index + 1} is missing a valid password hash iteration count.`);
+    assert(!Object.prototype.hasOwnProperty.call(account, 'password'), `Account ${index + 1} exposes a plaintext password.`);
     assert(!accountIds.has(account.id), `Duplicate account id: ${account.id}.`);
     assert(!loginIds.has(String(account.loginId).toLowerCase()), `Duplicate login ID: ${account.loginId}.`);
     accountIds.add(account.id);
     loginIds.add(String(account.loginId).toLowerCase());
+    if (account.role === 'student' && account.serial) {
+      const serial = normaliseSerial(account.serial);
+      assert(/^STU-\d{4}$/.test(serial), `Account ${index + 1} has an invalid student serial: ${account.serial}.`);
+      assert(!studentSerials.has(serial), `Duplicate student serial: ${serial}.`);
+      studentSerials.add(serial);
+    }
+  }
+
+  for (const admin of PERMANENT_ADMINS) {
+    const present = candidate.accounts.some((account) => account.id === admin.id
+      && account.role === 'admin'
+      && account.loginId === admin.loginId
+      && account.active !== false
+      && account.permanent === true
+      && account.salt === admin.salt
+      && account.passwordHash === admin.passwordHash
+      && Number(account.hashIterations) === admin.hashIterations);
+    assert(present, `Permanent administrator account ${admin.loginId} is missing or was altered.`);
   }
 
   const serialCodes = new Set();
@@ -2050,28 +2043,42 @@ function validateDatabase(raw) {
 }
 function normaliseDatabase(candidate) {
   const db = clone(candidate);
-  db.schema = 'steamlab-db-v1';
-  db.version = 1;
+  db.schema = 'steamlab-db-v2';
+  db.version = 2;
   db.createdAt = finiteNumber(db.createdAt, Date.now());
   db.updatedAt = finiteNumber(db.updatedAt, Date.now());
   db.settings = normaliseSettings(db.settings);
-  db.accounts = (Array.isArray(db.accounts) ? db.accounts : []).map((account) => ({
-    ...account,
-    name: String(account.name || account.loginId || 'User'),
-    serial: account.serial || null,
-    serialBoundAt: account.serialBoundAt || null,
-    active: account.active !== false,
-    autoApprove: Boolean(account.autoApprove),
-    createdAt: finiteNumber(account.createdAt, db.createdAt)
-  }));
-  db.serials = (Array.isArray(db.serials) ? db.serials : []).map((serial) => ({
-    ...serial,
-    status: ['free', 'assigned', 'used'].includes(serial.status) ? serial.status : 'free',
-    assignedTo: serial.assignedTo || null,
-    boundAt: serial.boundAt || null,
-    createdAt: finiteNumber(serial.createdAt, db.createdAt)
-  }));
-  db.serialBindings = isObject(db.serialBindings) ? db.serialBindings : {};
+  db.accounts = (Array.isArray(db.accounts) ? db.accounts : []).map((account) => {
+    const safe = { ...account };
+    delete safe.password;
+    delete safe.serialBoundAt;
+    const assignedAt = Number(safe.serialAssignedAt || 0);
+    return {
+      ...safe,
+      name: String(safe.name || safe.loginId || 'User'),
+      className: String(safe.className || ''),
+      hashIterations: Number.isInteger(Number(safe.hashIterations)) ? Number(safe.hashIterations) : PASSWORD_HASH_ITERATIONS,
+      serial: normaliseSerial(safe.serial) || null,
+      serialAssignedAt: Number.isFinite(assignedAt) && assignedAt > 0 ? assignedAt : null,
+      active: safe.active !== false,
+      autoApprove: Boolean(safe.autoApprove),
+      permanent: Boolean(safe.permanent),
+      createdAt: finiteNumber(safe.createdAt, db.createdAt)
+    };
+  });
+  db.serials = (Array.isArray(db.serials) ? db.serials : []).map((serial) => {
+    const assignedAt = Number(serial.assignedAt || serial.boundAt || 0);
+    return {
+      ...serial,
+      code: normaliseSerial(serial.code),
+      role: serial.role === 'teacher' ? 'teacher' : 'student',
+      status: serial.status === 'free' ? 'free' : 'assigned',
+      assignedTo: serial.assignedTo || null,
+      assignedAt: Number.isFinite(assignedAt) && assignedAt > 0 ? assignedAt : null,
+      createdAt: finiteNumber(serial.createdAt, db.createdAt)
+    };
+  });
+  db.serialBindings = {};
   db.requests = (Array.isArray(db.requests) ? db.requests : []).map((request) => ({
     ...request,
     studentName: String(request.studentName || 'Unknown student'),
@@ -2092,7 +2099,13 @@ function normaliseDatabase(candidate) {
   db.requests.forEach((request) => {
     if (!Array.isArray(request.schedule.segments)) request.schedule.segments = [];
   });
-  db.session = isObject(db.session) && db.accounts.some((account) => account.id === db.session.accountId && account.active) ? db.session : null;
+  const sessionAccount = isObject(db.session) ? db.accounts.find((account) => account.id === db.session.accountId && account.active) : null;
+  db.session = sessionAccount ? {
+    accountId: sessionAccount.id,
+    role: sessionAccount.role,
+    name: sessionAccount.name,
+    loginAt: finiteNumber(db.session.loginAt, db.createdAt)
+  } : null;
   db.activity = Array.isArray(db.activity) ? db.activity.slice(-100) : [];
   db.counters = {
     request: Math.max(1, finiteNumber(db.counters && db.counters.request, 1)),
@@ -2121,9 +2134,9 @@ function loadOrSeedDatabase(now = Date.now()) {
       return currentDb;
     }
   } catch (_) {
-    // A corrupt local record is replaced by valid demo data rather than a blank screen.
+    // A corrupt or outdated local record is replaced by factory data rather than a blank screen.
   }
-  currentDb = createSeedDatabase(now);
+  currentDb = createFactoryDatabase(now);
   saveDatabaseTo(currentDb);
   return currentDb;
 }
@@ -2141,8 +2154,8 @@ function replaceDb(db) {
   saveDatabaseTo(currentDb);
   return currentDb;
 }
-function resetToSeedDatabase(now = Date.now()) {
-  return replaceDb(createSeedDatabase(now));
+function resetToFactoryDatabase(now = Date.now()) {
+  return replaceDb(createFactoryDatabase(now));
 }
 function isDatabaseLoaded() {
   return currentDb !== null;
@@ -2158,7 +2171,7 @@ function findRequestById(db, id) {
   return db.requests.find((request) => request.id === id) || null;
 }
 function findSerial(db, code) {
-  const normalised = String(code || '').trim().toUpperCase();
+  const normalised = normaliseSerial(code);
   return db.serials.find((serial) => serial.code === normalised) || null;
 }
 function makeRequestCode(db) {
@@ -2191,10 +2204,10 @@ __SL.DEFAULT_SETTINGS = DEFAULT_SETTINGS;
 __SL.VALID_STATUSES = VALID_STATUSES;
 __SL.ACTIVE_STATUSES = ACTIVE_STATUSES;
 __SL.VALID_PRIORITIES = VALID_PRIORITIES;
-__SL.DEMO_ACCOUNTS = DEMO_ACCOUNTS;
-__SL.DEMO_CREDENTIALS = DEMO_CREDENTIALS;
+__SL.PERMANENT_ADMINS = PERMANENT_ADMINS;
+__SL.publicAccount = publicAccount;
 __SL.createAccountRecord = createAccountRecord;
-__SL.createSeedDatabase = createSeedDatabase;
+__SL.createFactoryDatabase = createFactoryDatabase;
 __SL.validateDatabase = validateDatabase;
 __SL.normaliseDatabase = normaliseDatabase;
 __SL.saveDatabaseTo = saveDatabaseTo;
@@ -2203,7 +2216,7 @@ __SL.loadOrSeedDatabase = loadOrSeedDatabase;
 __SL.getDb = getDb;
 __SL.commitDb = commitDb;
 __SL.replaceDb = replaceDb;
-__SL.resetToSeedDatabase = resetToSeedDatabase;
+__SL.resetToFactoryDatabase = resetToFactoryDatabase;
 __SL.isDatabaseLoaded = isDatabaseLoaded;
 __SL.findAccountById = findAccountById;
 __SL.findAccountByLogin = findAccountByLogin;
@@ -2217,8 +2230,8 @@ __SL.nextSerialCodes = nextSerialCodes;
 /* src/api.js */
 (function () {
 'use strict';
-const { formatDateTime, formatDate, formatTime, formatDuration, formatLongWeekday, dayKey, startOfDay, parseHHMM, csvEscape, makeId, hashPassword, makeSalt, verifyPassword, readFileBytes, putFile, getFile, clearFiles, bytesToBase64, base64ToBytes, utf8ToString, toBytes, getStorageNotice, clampNumber } = __SL;
-const { DEFAULT_SETTINGS, VALID_PRIORITIES, ACTIVE_STATUSES, DEMO_CREDENTIALS, DEMO_ACCOUNTS, getDb, commitDb, replaceDb, resetToSeedDatabase, findAccountById, findAccountByLogin, findRequestById, findSerial, makeRequestCode, nextSerialCodes, createAccountRecord, validateDatabase, serialFormat } = __SL;
+const { formatDateTime, formatDate, formatTime, formatDuration, formatLongWeekday, dayKey, startOfDay, parseHHMM, csvEscape, makeId, hashPassword, makeSalt, PASSWORD_HASH_ITERATIONS, verifyPassword, readFileBytes, putFile, getFile, clearFiles, bytesToBase64, base64ToBytes, utf8ToString, toBytes, getStorageNotice, clampNumber } = __SL;
+const { DEFAULT_SETTINGS, VALID_PRIORITIES, ACTIVE_STATUSES, PERMANENT_ADMINS, getDb, commitDb, replaceDb, resetToFactoryDatabase, findAccountById, findAccountByLogin, findRequestById, findSerial, makeRequestCode, nextSerialCodes, createAccountRecord, validateDatabase, serialFormat, publicAccount } = __SL;
 const { estimateFromFile, isSupportedUpload, getExtension, MODEL_EXTENSIONS, IMAGE_EXTENSIONS } = __SL;
 const { scheduleRequests } = __SL;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -2249,6 +2262,39 @@ function normaliseSerial(value) {
 
 function serialPattern(role) {
   return role === 'student' ? /^STU-\d{4}$/ : /^T-\d{4}$/;
+}
+
+const PERMANENT_ADMIN_IDS = new Set(PERMANENT_ADMINS.map((admin) => admin.id));
+const PERMANENT_ADMIN_LOGINS = new Set(PERMANENT_ADMINS.map((admin) => admin.loginId.toUpperCase()));
+
+function isPermanentAdmin(account) {
+  if (!account) return false;
+  return Boolean(account.permanent)
+    || PERMANENT_ADMIN_IDS.has(account.id)
+    || PERMANENT_ADMIN_LOGINS.has(String(account.loginId || '').toUpperCase());
+}
+
+function requireSession(actor) {
+  const session = getSessionAccount();
+  if (!session) throw new Error('Sign in is required for this action.');
+  if (actor && actor.id && actor.id !== session.id) throw new Error('The signed-in account does not match this request.');
+  return session;
+}
+
+function requireAdmin(actor) {
+  const session = requireSession(actor);
+  if (session.role !== 'admin') throw new Error('Administrator sign-in is required for account management.');
+  return session;
+}
+
+function assertActorRole(actor, roles) {
+  if (!actor || !roles.includes(actor.role)) throw new Error('This account does not have permission for that action.');
+}
+
+function requireSessionActor(actor, roles) {
+  const session = requireSession(actor);
+  assertActorRole(session, roles);
+  return session;
 }
 
 function commitIfRequested(options) {
@@ -2387,149 +2433,40 @@ function getSessionAccount() {
     commitDb();
     return null;
   }
-  return account;
+  return publicAccount(account);
 }
 
 function releaseAccountSerial(db, account) {
   if (!account || !account.serial) return;
   const record = findSerial(db, account.serial);
-  if (record) {
-    if (record.status === 'used') record.assignedTo = null;
-    else {
-      record.status = 'free';
-      record.assignedTo = null;
-      record.boundAt = null;
-      delete db.serialBindings[record.code];
-    }
+  if (record && record.assignedTo === account.id) {
+    record.status = 'free';
+    record.assignedTo = null;
+    record.assignedAt = null;
   }
   account.serial = null;
-  account.serialBoundAt = null;
-}
-function restoreDemoCredentials(role, now = Date.now()) {
-  const db = getDb();
-  const key = role === 'student2' ? 'student2' : role;
-  const demo = DEMO_ACCOUNTS.find((entry) => entry.key === key) || DEMO_ACCOUNTS.find((entry) => entry.key === 'student');
-  let account = findAccountByLogin(db, demo.loginId);
-  if (!account) {
-    const id = db.accounts.some((entry) => entry.id === demo.id) ? makeId('acc') : demo.id;
-    account = createAccountRecord({ ...demo, id }, now);
-    db.accounts.push(account);
-  }
-  const oldSerial = account.serial;
-  account.name = demo.name;
-  account.role = demo.role;
-  account.loginId = demo.loginId;
-  account.active = true;
-  account.autoApprove = Boolean(demo.autoApprove);
-  account.salt = account.salt || makeSalt();
-  account.passwordHash = hashPassword(demo.password, account.salt);
-  account.passwordUpdatedAt = now;
-
-  let serialCode = normaliseSerial(demo.serial);
-  if (demo.serial) {
-    let record = findSerial(db, serialCode);
-    const binding = db.serialBindings[serialCode];
-    const usable = !record
-      || record.status === 'free'
-      || (record.assignedTo === account.id && (!binding || binding === account.id))
-      || (record.status === 'used' && binding === account.id)
-      || (record.assignedTo === null && record.status !== 'used');
-    if (!usable) {
-      serialCode = nextSerialCodes(db, demo.role, 1)[0];
-      record = null;
-    }
-    if (!record) {
-      record = { code: serialCode, role: demo.role, status: 'free', assignedTo: null, boundAt: null, createdAt: now };
-      db.serials.push(record);
-    }
-    const boundToThis = db.serialBindings[serialCode] === account.id;
-    if (boundToThis || record.status === 'used') {
-      record.status = 'used';
-      record.assignedTo = account.id;
-      record.boundAt = record.boundAt || now;
-      db.serialBindings[serialCode] = account.id;
-      account.serialBoundAt = record.boundAt;
-    } else {
-      record.status = 'assigned';
-      record.assignedTo = account.id;
-      record.boundAt = null;
-      account.serialBoundAt = null;
-    }
-    account.serial = serialCode;
-    if (oldSerial && oldSerial !== serialCode) {
-      const previous = findSerial(db, oldSerial);
-      if (previous && previous.status !== 'used') {
-        previous.status = 'free';
-        previous.assignedTo = null;
-        previous.boundAt = null;
-        delete db.serialBindings[oldSerial];
-      }
-    }
-  } else {
-    account.serial = null;
-    account.serialBoundAt = null;
-  }
-  addActivity(db, 'system', 'demo', `Restored demo credentials for ${demo.loginId}.`, now);
-  commitDb();
-  return { loginId: demo.loginId, password: demo.password, serial: serialCode };
+  account.serialAssignedAt = null;
 }
 function login(payload, now = Date.now()) {
   const db = getDb();
   const role = String(payload.role || '');
   const loginId = String(payload.loginId || '').trim();
   const password = String(payload.password || '');
-  const serial = normaliseSerial(payload.serial);
   const errors = {};
-  if (!loginId) errors.loginId = role === 'admin' ? 'Enter the admin username.' : 'Enter your login ID.';
+  if (!['student', 'teacher', 'admin'].includes(role)) errors.general = 'Choose a valid role.';
+  if (!loginId) errors.loginId = 'Enter your username.';
   if (!password) errors.password = 'Enter your password.';
-  if (role !== 'admin' && !serial) errors.serial = 'Enter your issued serial number.';
   if (Object.keys(errors).length) return { ok: false, errors };
 
   const account = findAccountByLogin(db, loginId, role);
-  if (!account || !account.active) {
-    errors.loginId = role === 'admin' ? 'No active admin account matches that username.' : 'No active account matches that login ID and role.';
+  if (!account || !account.active || !verifyPassword(password, account)) {
+    errors.password = 'Username or password is incorrect.';
     return { ok: false, errors };
-  }
-  if (!verifyPassword(password, account.salt, account.passwordHash)) {
-    errors.password = 'Password is incorrect.';
-    return { ok: false, errors };
-  }
-  if (role !== 'admin') {
-    if (!serialPattern(role).test(serial)) {
-      errors.serial = role === 'student' ? 'Student serials use STU-####.' : 'Teacher serials use T-####.';
-      return { ok: false, errors };
-    }
-    if (normaliseSerial(account.serial) !== serial) {
-      errors.serial = 'That serial is not assigned to this account.';
-      return { ok: false, errors };
-    }
-    const record = findSerial(db, serial);
-    if (!record || record.role !== role) {
-      errors.serial = 'That serial has not been issued for this role.';
-      return { ok: false, errors };
-    }
-    const binding = db.serialBindings[serial];
-    if ((binding && binding !== account.id) || (record.status === 'used' && !binding)) {
-      errors.serial = 'This serial is single-use and is already bound to another account.';
-      return { ok: false, errors };
-    }
-    if (!binding) {
-      db.serialBindings[serial] = account.id;
-      account.serialBoundAt = now;
-      record.status = 'used';
-      record.assignedTo = account.id;
-      record.boundAt = now;
-    } else {
-      record.status = 'used';
-      record.assignedTo = account.id;
-      record.boundAt = record.boundAt || now;
-      account.serialBoundAt = account.serialBoundAt || record.boundAt;
-    }
   }
   db.session = { accountId: account.id, role: account.role, name: account.name, loginAt: now };
   addActivity(db, account, 'login', `${account.name} signed in as ${account.role}.`, now);
   commitDb();
-  return { ok: true, account, errors: {} };
+  return { ok: true, account: publicAccount(account), errors: {} };
 }
 function logout(actor, now = Date.now()) {
   const db = getDb();
@@ -2604,6 +2541,7 @@ async function previewEstimate(file, form, now = Date.now()) {
   return { ok: true, errors: {}, bytes, estimate };
 }
 function createRequestRecord(db, payload, actor, now = Date.now()) {
+  assertActorRole(actor, ['student', 'admin']);
   const studentId = actor && actor.role === 'admin' ? String(payload.studentId || '') : (actor && actor.id);
   const student = findAccountById(db, studentId);
   const errors = validateRequestFields(db, payload, actor, studentId);
@@ -2645,7 +2583,8 @@ function createRequestRecord(db, payload, actor, now = Date.now()) {
 }
 async function submitRequest(payload, actor, now = Date.now()) {
   const db = getDb();
-  const preflight = validateRequestFields(db, payload, actor, actor.role === 'admin' ? payload.studentId : actor.id);
+  const session = requireSessionActor(actor, ['student', 'admin']);
+  const preflight = validateRequestFields(db, payload, session, session.role === 'admin' ? payload.studentId : session.id);
   const fileErrors = validateUpload(db, payload.file);
   const errors = { ...preflight, ...fileErrors };
   if (Object.keys(errors).length) return { ok: false, errors };
@@ -2661,15 +2600,19 @@ async function submitRequest(payload, actor, now = Date.now()) {
     mime: payload.file.type || 'application/octet-stream',
     pointer
   };
-  const created = createRequestRecord(db, { ...payload, file: fileRecord, estimate: preview.estimate }, actor, now);
+  const created = createRequestRecord(db, { ...payload, file: fileRecord, estimate: preview.estimate }, session, now);
   if (!created.ok) return created;
   commitDb();
   return created;
 }
-async function getRequestFile(id) {
+async function getRequestFile(id, actor) {
+  const session = requireSession(actor);
   const db = getDb();
   const request = findRequestById(db, id);
   if (!request || !request.file || !request.file.pointer) return null;
+  if (session.role === 'student' && request.studentId !== session.id) {
+    throw new Error('Students can download only their own uploaded files.');
+  }
   const stored = await getFile(request.file.pointer);
   if (!stored) return null;
   return {
@@ -2679,6 +2622,7 @@ async function getRequestFile(id) {
   };
 }
 async function reestimateFromFile(id, actor, now = Date.now()) {
+  const session = requireSessionActor(actor, ['teacher', 'admin']);
   const db = getDb();
   const request = findRequestById(db, id);
   if (!request) throw new Error('That request no longer exists.');
@@ -2697,11 +2641,12 @@ async function reestimateFromFile(id, actor, now = Date.now()) {
   estimate.previousMinutes = Number(request.estimate.minutes) || null;
   request.estimate = estimate;
   if (request.status === 'approved') runScheduler(db, now);
-  addActivity(db, actor, 'estimate', `${request.code} re-estimated from ${request.file.name}.`, now);
+  addActivity(db, session, 'estimate', `${request.code} re-estimated from ${request.file.name}.`, now);
   commitDb();
   return estimate;
 }
-function approveRequest(db, id, options, actor, now = Date.now()) {
+function approveRequestRecord(db, id, options, actor, now = Date.now()) {
+  assertActorRole(actor, ['teacher', 'admin']);
   const request = findRequestById(db, id);
   if (!request || request.status !== 'pending') return { ok: false, errors: { general: 'Only pending requests can be approved.' } };
   const errors = {};
@@ -2729,6 +2674,7 @@ function approveRequest(db, id, options, actor, now = Date.now()) {
   return { ok: true, errors: {}, request, schedule: scheduleText(request) };
 }
 function rejectRequest(db, id, reason, actor, now = Date.now()) {
+  const session = requireSessionActor(actor, ['teacher', 'admin']);
   const request = findRequestById(db, id);
   if (!request || request.status !== 'pending') return { ok: false, errors: { reason: 'Only pending requests can be rejected.' } };
   const cleanReason = String(reason || '').trim();
@@ -2737,21 +2683,23 @@ function rejectRequest(db, id, reason, actor, now = Date.now()) {
   request.rejectionReason = cleanReason;
   request.schedule = { segments: [], reason: 'Rejected; no printer time is reserved.', scheduledAt: null, fixed: false, releasedAt: now };
   runScheduler(db, now);
-  addActivity(db, actor, 'reject', `${request.code} rejected: ${cleanReason}`, now);
+  addActivity(db, session, 'reject', `${request.code} rejected: ${cleanReason}`, now);
   commitDb();
   return { ok: true, errors: {}, request };
 }
 function confirmSlot(db, id, actor, now = Date.now()) {
+  const session = requireSessionActor(actor, ['teacher', 'admin']);
   const request = findRequestById(db, id);
   if (!request || request.status !== 'approved') return { ok: false, errors: { general: 'Only approved requests have a slot to confirm.' } };
   if (!request.schedule.segments.length) return { ok: false, errors: { general: 'This request has no scheduled slot yet.' } };
   request.slotConfirmedAt = now;
-  request.slotConfirmedBy = actor.id;
-  addActivity(db, actor, 'confirm', `${request.code} slot confirmed for ${scheduleText(request)}.`, now);
+  request.slotConfirmedBy = session.id;
+  addActivity(db, session, 'confirm', `${request.code} slot confirmed for ${scheduleText(request)}.`, now);
   commitDb();
   return { ok: true, errors: {}, request };
 }
 function startPrint(db, id, actor, now = Date.now()) {
+  const session = requireSessionActor(actor, ['teacher', 'admin']);
   const request = findRequestById(db, id);
   if (!request || request.status !== 'approved') return { ok: false, errors: { general: 'Start print is available only for approved requests.' } };
   if (!request.slotConfirmedAt) return { ok: false, errors: { general: 'Confirm the slot before starting the print.' } };
@@ -2761,11 +2709,12 @@ function startPrint(db, id, actor, now = Date.now()) {
   request.schedule.fixed = true;
   request.schedule.reason = 'Printing in progress; this job is locked and will not be moved.';
   runScheduler(db, now);
-  addActivity(db, actor, 'start', `${request.code} started printing; schedule locked.`, now);
+  addActivity(db, session, 'start', `${request.code} started printing; schedule locked.`, now);
   commitDb();
   return { ok: true, errors: {}, request };
 }
 function markPrinted(db, id, actor, now = Date.now()) {
+  const session = requireSessionActor(actor, ['teacher', 'admin']);
   const request = findRequestById(db, id);
   if (!request || request.status !== 'printing') return { ok: false, errors: { general: 'Mark printed is available only while a job is printing.' } };
   request.status = 'printed';
@@ -2773,22 +2722,24 @@ function markPrinted(db, id, actor, now = Date.now()) {
   request.workflow.printMinutes = effectiveMinutes(request);
   request.schedule = { segments: [], reason: 'Released after printing; future reserved time is available again.', scheduledAt: null, fixed: false, releasedAt: now };
   runScheduler(db, now);
-  addActivity(db, actor, 'printed', `${request.code} marked printed; reserved time released.`, now);
+  addActivity(db, session, 'printed', `${request.code} marked printed; reserved time released.`, now);
   commitDb();
   return { ok: true, errors: {}, request };
 }
 function handOver(db, id, actor, now = Date.now()) {
+  const session = requireSessionActor(actor, ['teacher', 'admin']);
   const request = findRequestById(db, id);
   if (!request || request.status !== 'printed') return { ok: false, errors: { general: 'Hand-over is available only after a job is printed.' } };
   request.status = 'handed';
   request.workflow.handedAt = now;
   request.schedule = { segments: [], reason: 'Released after hand-over.', scheduledAt: null, fixed: false, releasedAt: now };
   runScheduler(db, now);
-  addActivity(db, actor, 'handover', `${request.code} handed to ${request.studentName}.`, now);
+  addActivity(db, session, 'handover', `${request.code} handed to ${request.studentName}.`, now);
   commitDb();
   return { ok: true, errors: {}, request };
 }
-function cancelRequest(db, id, actor, reason, now = Date.now(), options = {}) {
+function cancelRequestRecord(db, id, actor, reason, now = Date.now(), options = {}) {
+  assertActorRole(actor, ['student', 'teacher', 'admin']);
   const request = findRequestById(db, id);
   if (!request) return { ok: false, errors: { general: 'That request no longer exists.' } };
   if (!['pending', 'approved'].includes(request.status)) return { ok: false, errors: { general: 'Only pending or approved requests can be cancelled.' } };
@@ -2801,116 +2752,144 @@ function cancelRequest(db, id, actor, reason, now = Date.now(), options = {}) {
   commitIfRequested(options);
   return { ok: true, errors: {}, request };
 }
-function rerunScheduler(now = Date.now()) {
+function approveRequest(db, id, options, actor, now = Date.now()) {
+  const session = requireSessionActor(actor, ['teacher', 'admin']);
+  return approveRequestRecord(db, id, options, session, now);
+}
+function cancelRequest(db, id, actor, reason, now = Date.now(), options = {}) {
+  const session = requireSessionActor(actor, ['student', 'teacher', 'admin']);
+  return cancelRequestRecord(db, id, session, reason, now, options);
+}
+function rerunScheduler(actor, now = Date.now()) {
+  const session = requireSessionActor(actor, ['teacher', 'admin']);
   const db = getDb();
   const outcome = runScheduler(db, now);
   commitDb();
-  addActivity(db, 'system', 'schedule', 'Scheduler re-run manually.', now);
+  addActivity(db, session, 'schedule', 'Scheduler re-run manually.', now);
   commitDb();
   return outcome;
 }
 
 function validateAccountInput(db, raw, mode, currentAccountId = null) {
   const errors = {};
+  const current = currentAccountId ? findAccountById(db, currentAccountId) : null;
   const role = String(raw.role || '');
   const loginId = String(raw.loginId || '').trim();
   const name = String(raw.name || '').trim();
+  const className = String(raw.className || '').trim();
   const password = String(raw.password || '');
   const serial = normaliseSerial(raw.serial);
-  if (!['student', 'teacher', 'admin'].includes(role)) errors.role = 'Choose a valid role.';
-  if (!name) errors.name = 'Enter a display name.';
-  if (!loginId) errors.loginId = 'Enter a login ID or username.';
-  if (db.accounts.some((account) => account.id !== currentAccountId && account.loginId.toLowerCase() === loginId.toLowerCase())) {
-    errors.loginId = 'That login ID is already used by another account.';
+  if (current && isPermanentAdmin(current)) {
+    errors.general = 'Permanent administrator accounts are fixed and cannot be changed.';
   }
-  if ((mode === 'create' || password) && password.length < 4) errors.password = 'Use at least 4 characters, or leave blank to keep the current password.';
-  if (role !== 'admin') {
-    if (!serial) errors.serial = 'Assign an issued serial number.';
-    else if (!serialPattern(role).test(serial)) errors.serial = role === 'student' ? 'Student serials use STU-####.' : 'Teacher serials use T-####.';
+  if (!['student', 'teacher', 'admin'].includes(role)) errors.role = 'Choose a valid role.';
+  if (!name) errors.name = role === 'student' ? 'Enter the student’s full name.' : role === 'teacher' ? 'Enter the teacher’s full name.' : 'Enter a display name.';
+  if (!loginId) errors.loginId = 'Enter a username.';
+  if (db.accounts.some((account) => account.id !== currentAccountId && account.loginId.toLowerCase() === loginId.toLowerCase())) {
+    errors.loginId = 'That username is already used by another account.';
+  }
+  if ((mode === 'create' || password) && password.length < 6) {
+    errors.password = 'Use at least 6 characters, or leave blank to keep the current password.';
+  }
+  if (role === 'student') {
+    if (!className) errors.className = 'Enter the student’s class.';
+    if (!serial) errors.serial = 'Enter a unique student serial number.';
+    else if (!serialPattern('student').test(serial)) errors.serial = 'Student serial numbers use STU-####.';
     else {
+      const duplicateAccount = db.accounts.some((account) => account.id !== currentAccountId
+        && account.role === 'student'
+        && normaliseSerial(account.serial) === serial);
       const record = findSerial(db, serial);
-      if (!record || record.role !== role) errors.serial = 'Generate this serial first; it is not in the issued pool.';
-      else if (record.status === 'used' && db.serialBindings[serial] !== currentAccountId) errors.serial = 'That serial is single-use and already bound to another account.';
-      else if (record.status === 'assigned' && record.assignedTo && record.assignedTo !== currentAccountId) errors.serial = 'That serial is assigned to a different account.';
+      if (duplicateAccount) errors.serial = 'That student serial number is already assigned to another account.';
+      else if (record && record.role !== 'student') errors.serial = 'That serial belongs to a teacher account.';
+      else if (record && record.assignedTo && record.assignedTo !== currentAccountId) errors.serial = 'That serial number is already assigned to another account.';
     }
   }
   return errors;
 }
 
 function assignSerialToAccount(db, account, code, now) {
-  const record = findSerial(db, code);
-  if (!record) return;
-  if (db.serialBindings[code] === account.id) {
-    record.status = 'used';
-    record.boundAt = record.boundAt || now;
-    account.serialBoundAt = record.boundAt;
-  } else {
-    record.status = 'assigned';
-    record.boundAt = null;
-    account.serialBoundAt = null;
+  const serial = normaliseSerial(code);
+  if (!serial) return;
+  let record = findSerial(db, serial);
+  if (!record) {
+    record = { code: serial, role: account.role, status: 'free', assignedTo: null, assignedAt: null, createdAt: now };
+    db.serials.push(record);
   }
+  record.status = 'assigned';
   record.assignedTo = account.id;
-  account.serial = code;
+  record.assignedAt = now;
+  account.serial = serial;
+  account.serialAssignedAt = now;
 }
 function createAccount(raw, actor, now = Date.now()) {
+  const admin = requireAdmin(actor);
   const db = getDb();
   const errors = validateAccountInput(db, raw, 'create');
   if (Object.keys(errors).length) return { ok: false, errors };
   const account = createAccountRecord({
     role: raw.role,
     name: raw.name,
+    className: raw.role === 'student' ? raw.className : '',
     loginId: raw.loginId,
     password: raw.password,
-    serial: raw.role === 'admin' ? null : normaliseSerial(raw.serial),
+    serial: raw.role === 'student' ? normaliseSerial(raw.serial) : null,
     active: raw.active !== false,
-    autoApprove: raw.role === 'student' && Boolean(raw.autoApprove)
+    autoApprove: raw.role === 'student' && Boolean(raw.autoApprove),
+    permanent: false
   }, now);
   db.accounts.push(account);
   if (account.serial) assignSerialToAccount(db, account, account.serial, now);
-  addActivity(db, actor, 'account-create', `Created ${account.role} account ${account.loginId}.`, now);
+  addActivity(db, admin, 'account-create', `Created ${account.role} account ${account.loginId}.`, now);
   commitDb();
-  return { ok: true, errors: {}, account };
+  return { ok: true, errors: {}, account: publicAccount(account) };
 }
 function updateAccount(id, raw, actor, now = Date.now()) {
+  const admin = requireAdmin(actor);
   const db = getDb();
   const account = findAccountById(db, id);
   if (!account) return { ok: false, errors: { general: 'That account no longer exists.' } };
+  if (isPermanentAdmin(account)) return { ok: false, errors: { general: 'Permanent administrator accounts are fixed and cannot be changed.' } };
   const errors = validateAccountInput(db, raw, 'edit', id);
   if (Object.keys(errors).length) return { ok: false, errors };
-  const oldSerial = account.serial;
-  const newSerial = raw.role === 'admin' ? null : normaliseSerial(raw.serial);
-  if (oldSerial !== newSerial) releaseAccountSerial(db, account);
+  const newSerial = raw.role === 'student' ? normaliseSerial(raw.serial) : null;
+  if (account.serial !== newSerial) releaseAccountSerial(db, account);
   account.role = raw.role;
   account.name = String(raw.name).trim();
+  account.className = raw.role === 'student' ? String(raw.className || '').trim() : '';
   account.loginId = String(raw.loginId).trim();
   account.active = raw.active !== false;
   account.autoApprove = raw.role === 'student' && Boolean(raw.autoApprove);
   if (String(raw.password || '')) {
     account.salt = makeSalt();
-    account.passwordHash = hashPassword(raw.password, account.salt);
+    account.passwordHash = hashPassword(raw.password, account.salt, PASSWORD_HASH_ITERATIONS);
+    account.hashIterations = PASSWORD_HASH_ITERATIONS;
     account.passwordUpdatedAt = now;
   }
   if (newSerial) assignSerialToAccount(db, account, newSerial, now);
-  else account.serialBoundAt = null;
-  addActivity(db, actor, 'account-update', `Updated account ${account.loginId}.`, now);
+  else account.serialAssignedAt = null;
+  addActivity(db, admin, 'account-update', `Updated account ${account.loginId}.`, now);
   commitDb();
-  return { ok: true, errors: {}, account };
+  return { ok: true, errors: {}, account: publicAccount(account) };
 }
 function deleteAccount(id, actor, now = Date.now()) {
+  const admin = requireAdmin(actor);
   const db = getDb();
   const account = findAccountById(db, id);
   if (!account) return { ok: false, errors: { general: 'That account no longer exists.' } };
+  if (isPermanentAdmin(account)) return { ok: false, errors: { general: 'Permanent administrator accounts cannot be deleted.' } };
   if (db.session && db.session.accountId === id) return { ok: false, errors: { general: 'You cannot delete the account you are signed in with.' } };
   if (account.role === 'admin' && db.accounts.filter((entry) => entry.role === 'admin' && entry.active).length <= 1) {
     return { ok: false, errors: { general: 'The last active admin account cannot be deleted.' } };
   }
   releaseAccountSerial(db, account);
   db.accounts = db.accounts.filter((entry) => entry.id !== id);
-  addActivity(db, actor, 'account-delete', `Deleted account ${account.loginId}. Existing requests were kept.`, now);
+  addActivity(db, admin, 'account-delete', `Deleted account ${account.loginId}. Existing requests were kept.`, now);
   commitDb();
   return { ok: true, errors: {} };
 }
 function generateSerials(raw, actor, now = Date.now()) {
+  const admin = requireAdmin(actor);
   const db = getDb();
   const role = String(raw.role || '');
   const count = Number(raw.count);
@@ -2919,12 +2898,13 @@ function generateSerials(raw, actor, now = Date.now()) {
   if (!Number.isInteger(count) || count < 1 || count > 50) errors.count = 'Generate between 1 and 50 serials.';
   if (Object.keys(errors).length) return { ok: false, errors };
   const codes = nextSerialCodes(db, role, count);
-  for (const code of codes) db.serials.push({ code, role, status: 'free', assignedTo: null, boundAt: null, createdAt: now });
-  addActivity(db, actor, 'serials', `Generated ${codes.length} ${role} serial${codes.length === 1 ? '' : 's'}.`, now);
+  for (const code of codes) db.serials.push({ code, role, status: 'free', assignedTo: null, assignedAt: null, createdAt: now });
+  addActivity(db, admin, 'serials', `Generated ${codes.length} ${role} serial${codes.length === 1 ? '' : 's'}.`, now);
   commitDb();
   return { ok: true, errors: {}, codes };
 }
 function assignSerial(raw, actor, now = Date.now()) {
+  const admin = requireAdmin(actor);
   const db = getDb();
   const code = normaliseSerial(raw.code);
   const account = findAccountById(db, raw.accountId);
@@ -2936,9 +2916,9 @@ function assignSerial(raw, actor, now = Date.now()) {
   if (Object.keys(errors).length) return { ok: false, errors };
   releaseAccountSerial(db, account);
   assignSerialToAccount(db, account, code, now);
-  addActivity(db, actor, 'serial-assign', `${code} assigned to ${account.loginId}.`, now);
+  addActivity(db, admin, 'serial-assign', `${code} assigned to ${account.loginId}.`, now);
   commitDb();
-  return { ok: true, errors: {}, code, account };
+  return { ok: true, errors: {}, code, account: publicAccount(account) };
 }
 function validateSettingsInput(raw) {
   const errors = {};
@@ -2972,20 +2952,22 @@ function validateSettingsInput(raw) {
   return { settings, errors };
 }
 function updateSettings(raw, actor, now = Date.now()) {
+  const admin = requireAdmin(actor);
   const db = getDb();
   const validation = validateSettingsInput(raw);
   if (Object.keys(validation.errors).length) return { ok: false, errors: validation.errors };
   db.settings = validation.settings;
   runScheduler(db, now);
-  addActivity(db, actor, 'settings', 'Lab settings updated; schedule recalculated.', now);
+  addActivity(db, admin, 'settings', 'Lab settings updated; schedule recalculated.', now);
   commitDb();
   return { ok: true, errors: {}, settings: db.settings };
 }
 function resetSettings(actor, now = Date.now()) {
+  const admin = requireAdmin(actor);
   const db = getDb();
   db.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
   runScheduler(db, now);
-  addActivity(db, actor, 'settings', 'Lab settings reset to defaults; schedule recalculated.', now);
+  addActivity(db, admin, 'settings', 'Lab settings reset to defaults; schedule recalculated.', now);
   commitDb();
   return { ok: true, errors: {}, settings: db.settings };
 }
@@ -3155,10 +3137,10 @@ function exportRequestsCsv(db) {
   return [header, ...rows].map((row) => row.map(csvEscape).join(',')).join('\r\n');
 }
 function exportSerialsCsv(db) {
-  const header = ['Serial', 'Role', 'Status', 'Assigned to', 'Bound at'];
+  const header = ['Serial', 'Role', 'Status', 'Assigned to', 'Assigned at'];
   const rows = db.serials.map((serial) => {
     const account = serial.assignedTo ? findAccountById(db, serial.assignedTo) : null;
-    return [serial.code, serial.role, serial.status, account ? `${account.name} (${account.loginId})` : '', serial.boundAt ? formatDateTime(serial.boundAt) : ''];
+    return [serial.code, serial.role, serial.status, account ? `${account.name} (${account.loginId})` : '', serial.assignedAt ? formatDateTime(serial.assignedAt) : ''];
   });
   return [header, ...rows].map((row) => row.map(csvEscape).join(',')).join('\r\n');
 }
@@ -3172,7 +3154,8 @@ function exportReportCsv(db) {
   rows.push(['Summary', 'Handed-over completion rate', `${report.completionRate}%`]);
   return rows.map((row) => row.map(csvEscape).join(',')).join('\r\n');
 }
-async function exportBackup(now = Date.now()) {
+async function exportBackup(actor, now = Date.now()) {
+  requireAdmin(actor);
   const db = getDb();
   const validDb = validateDatabase(db);
   const files = [];
@@ -3191,7 +3174,7 @@ async function exportBackup(now = Date.now()) {
       base64: bytesToBase64(stored.bytes)
     });
   }
-  return { format: 'steamlab-backup-v1', createdAt: now, db: validDb, files };
+  return { format: 'steamlab-backup-v2', createdAt: now, db: validDb, files };
 }
 function parseBackupText(text) {
   let payload;
@@ -3200,13 +3183,14 @@ function parseBackupText(text) {
   } catch (_) {
     throw new Error('Backup is not valid JSON.');
   }
-  if (!isObject(payload) || payload.format !== 'steamlab-backup-v1' || !isObject(payload.db) || !Array.isArray(payload.files)) {
-    throw new Error('Backup must be a steamlab-backup-v1 JSON object with db and files.');
+  if (!isObject(payload) || payload.format !== 'steamlab-backup-v2' || !isObject(payload.db) || !Array.isArray(payload.files)) {
+    throw new Error('Backup must be a steamlab-backup-v2 JSON object with db and files.');
   }
   return payload;
 }
 async function importBackup(payload, actor, now = Date.now()) {
-  if (!isObject(payload) || payload.format !== 'steamlab-backup-v1' || !isObject(payload.db) || !Array.isArray(payload.files)) {
+  const admin = requireAdmin(actor);
+  if (!isObject(payload) || payload.format !== 'steamlab-backup-v2' || !isObject(payload.db) || !Array.isArray(payload.files)) {
     throw new Error('Backup failed validation before any database change.');
   }
   const db = validateDatabase(payload.db);
@@ -3228,13 +3212,14 @@ async function importBackup(payload, actor, now = Date.now()) {
     request.file.size = request.file.pointer.size || request.file.size;
   }
   db.session = null;
-  addActivity(db, actor || 'system', 'import', `Imported ${db.requests.length} requests, ${db.accounts.length} accounts, and ${payload.files.length} files.`, now);
+  addActivity(db, admin, 'import', `Imported ${db.requests.length} requests, ${db.accounts.length} accounts, and ${payload.files.length} files.`, now);
   replaceDb(db);
   return { accounts: db.accounts.length, requests: db.requests.length, files: payload.files.length };
 }
-async function resetDemoData(now = Date.now()) {
+async function resetFactoryData(actor, now = Date.now()) {
+  requireAdmin(actor);
   await clearFiles();
-  const db = resetToSeedDatabase(now);
+  const db = resetToFactoryDatabase(now);
   runScheduler(db, now);
   commitDb();
   await ensureSeedFiles();
@@ -3245,9 +3230,6 @@ function parseSettingsForm(raw) {
 }
 function getUploadExtensionsText() {
   return `${MODEL_EXTENSIONS.map((extension) => `.${extension}`).join(' ')} · ${IMAGE_EXTENSIONS.map((extension) => `.${extension}`).join(' ')}`;
-}
-function getDemoCredentialSet(role) {
-  return DEMO_CREDENTIALS[role] || DEMO_CREDENTIALS.student;
 }
 function serialPrefix(role) {
   return serialFormat(role);
@@ -3277,7 +3259,6 @@ __SL.runScheduler = runScheduler;
 __SL.bootstrap = bootstrap;
 __SL.ensureSeedFiles = ensureSeedFiles;
 __SL.getSessionAccount = getSessionAccount;
-__SL.restoreDemoCredentials = restoreDemoCredentials;
 __SL.login = login;
 __SL.logout = logout;
 __SL.previewEstimate = previewEstimate;
@@ -3285,12 +3266,14 @@ __SL.createRequestRecord = createRequestRecord;
 __SL.submitRequest = submitRequest;
 __SL.getRequestFile = getRequestFile;
 __SL.reestimateFromFile = reestimateFromFile;
-__SL.approveRequest = approveRequest;
+__SL.approveRequestRecord = approveRequestRecord;
 __SL.rejectRequest = rejectRequest;
 __SL.confirmSlot = confirmSlot;
 __SL.startPrint = startPrint;
 __SL.markPrinted = markPrinted;
 __SL.handOver = handOver;
+__SL.cancelRequestRecord = cancelRequestRecord;
+__SL.approveRequest = approveRequest;
 __SL.cancelRequest = cancelRequest;
 __SL.rerunScheduler = rerunScheduler;
 __SL.createAccount = createAccount;
@@ -3309,10 +3292,9 @@ __SL.exportReportCsv = exportReportCsv;
 __SL.exportBackup = exportBackup;
 __SL.parseBackupText = parseBackupText;
 __SL.importBackup = importBackup;
-__SL.resetDemoData = resetDemoData;
+__SL.resetFactoryData = resetFactoryData;
 __SL.parseSettingsForm = parseSettingsForm;
 __SL.getUploadExtensionsText = getUploadExtensionsText;
-__SL.getDemoCredentialSet = getDemoCredentialSet;
 __SL.serialPrefix = serialPrefix;
 __SL.fileSizeLabel = fileSizeLabel;
 __SL.estimateBytes = estimateBytes;
@@ -3323,11 +3305,13 @@ __SL.clampSetting = clampSetting;
 /* src/selftest.js */
 (function () {
 'use strict';
-const { makeMemoryStorage, seedFileBytes, getStorageNotice } = __SL;
-const { createSeedDatabase, saveDatabaseTo, loadDatabaseFrom, isDatabaseLoaded, findAccountById, findRequestById } = __SL;
-const { createRequestRecord, approveRequest, cancelRequest } = __SL;
+const { makeMemoryStorage, makeSalt, seedFileBytes, getStorageNotice } = __SL;
+const { createFactoryDatabase, createAccountRecord, saveDatabaseTo, loadDatabaseFrom, isDatabaseLoaded, findRequestById } = __SL;
+const { createRequestRecord, approveRequestRecord, cancelRequestRecord } = __SL;
 const { scheduleRequests, scheduleHasOverlaps } = __SL;
 const { estimateFromFile } = __SL;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 function require(condition, message) {
   if (!condition) throw new Error(message);
 }
@@ -3352,7 +3336,7 @@ function runSelfTest() {
   try {
     const now = new Date(2026, 0, 5, 8, 0, 0, 0).getTime();
     const tempStorage = makeMemoryStorage();
-    const db = createSeedDatabase(now);
+    const db = createFactoryDatabase(now);
     db.settings = {
       ...db.settings,
       openTime: '08:00',
@@ -3363,18 +3347,32 @@ function runSelfTest() {
       dailyCapMinutes: 420,
       minLeadMinutes: 0
     };
-    saveDatabaseTo(db, tempStorage);
-    const seeded = loadDatabaseFrom(tempStorage);
+    db.counters.request = 9001;
 
-    check('seeds a temporary store without loading the live database', () => {
-      require(seeded.accounts.length === 4, `expected 4 seeded accounts, found ${seeded.accounts.length}`);
-      require(seeded.requests.length === 2, `expected 2 seeded requests, found ${seeded.requests.length}`);
-      require(isDatabaseLoaded() === realLoadedBefore, 'live database load state changed');
-      return '4 accounts and 2 requests in an isolated Map-backed store';
+    const student = createAccountRecord({
+      role: 'student',
+      name: 'Self-test student',
+      className: 'Temporary class',
+      loginId: 'selftest-student',
+      password: makeSalt(),
+      serial: 'STU-9001'
+    }, now);
+    const teacher = createAccountRecord({
+      role: 'teacher',
+      name: 'Self-test teacher',
+      loginId: 'selftest-teacher',
+      password: makeSalt()
+    }, now);
+    db.accounts.push(student, teacher);
+    db.serials.push({
+      code: 'STU-9001',
+      role: 'student',
+      status: 'assigned',
+      assignedTo: student.id,
+      assignedAt: now,
+      createdAt: now
     });
 
-    const student = findAccountById(db, 'acc-student1');
-    const teacher = findAccountById(db, 'acc-teacher1');
     const bytes = seedFileBytes('selftest-cube', 'selftest.stl');
     const estimate = estimateFromFile({
       name: 'selftest.stl',
@@ -3385,19 +3383,59 @@ function runSelfTest() {
       buildVolume: db.settings.buildVolume,
       now
     });
-    const created = createRequestRecord(db, {
-      title: 'Self-test calibration part',
-      notes: 'Temporary self-test job.',
+    const file = {
+      name: 'selftest.stl',
+      size: bytes.length,
+      mime: 'model/stl',
+      pointer: { backend: 'seed', key: 'selftest-cube', seedKey: 'selftest-cube', name: 'selftest.stl', size: bytes.length, mime: 'model/stl' }
+    };
+    db.requests.push({
+      id: 'req-selftest-normal',
+      code: 'SLB-9000',
+      studentId: student.id,
+      studentName: student.name,
+      title: 'Self-test normal job',
+      notes: 'Temporary normal-priority job.',
       material: 'PLA',
       colour: 'Blue',
       infill: 20,
       copies: 1,
-      file: {
-        name: 'selftest.stl',
-        size: bytes.length,
-        mime: 'model/stl',
-        pointer: { backend: 'seed', key: 'selftest-cube', seedKey: 'selftest-cube', name: 'selftest.stl', size: bytes.length, mime: 'model/stl' }
-      },
+      status: 'approved',
+      priority: 'normal',
+      submittedAt: now - 2 * DAY_MS,
+      approvedAt: now - 1000,
+      approvedBy: teacher.id,
+      adjustedMinutes: 60,
+      rejectionReason: null,
+      cancelReason: null,
+      slotConfirmedAt: null,
+      slotConfirmedBy: null,
+      file,
+      estimate,
+      schedule: { segments: [], reason: 'Waiting for the scheduler', scheduledAt: null, fixed: false, releasedAt: null },
+      workflow: { startedAt: null, printedAt: null, handedAt: null, printMinutes: null },
+      createdAt: now - 2 * DAY_MS
+    });
+
+    saveDatabaseTo(db, tempStorage);
+    const seeded = loadDatabaseFrom(tempStorage);
+
+    check('builds a factory store with only two permanent administrators', () => {
+      require(seeded.accounts.filter((account) => account.role === 'admin' && account.permanent).length === 2, 'expected two permanent administrator accounts');
+      require(seeded.accounts.filter((account) => account.role === 'student' || account.role === 'teacher').length === 2, 'expected two temporary non-admin accounts');
+      require(!seeded.accounts.some((account) => Object.prototype.hasOwnProperty.call(account, 'password')), 'a plaintext password was exposed');
+      require(isDatabaseLoaded() === realLoadedBefore, 'live database load state changed');
+      return '2 permanent admins, 2 isolated test accounts, no plaintext passwords';
+    });
+
+    const created = createRequestRecord(db, {
+      title: 'Self-test urgent part',
+      notes: 'Temporary urgent job.',
+      material: 'PLA',
+      colour: 'Blue',
+      infill: 20,
+      copies: 1,
+      file,
       estimate
     }, student, now);
     check('creates a job and computes its estimate from a real STL mesh', () => {
@@ -3408,7 +3446,7 @@ function runSelfTest() {
     });
 
     const requestId = created.request ? created.request.id : 'missing-request';
-    const approved = approveRequest(db, requestId, { minutes: 60, priority: 'urgent', commit: false }, teacher, now);
+    const approved = approveRequestRecord(db, requestId, { minutes: 60, priority: 'urgent', commit: false }, teacher, now);
     check('approves the job and auto-runs the scheduler', () => {
       require(approved.ok, Object.values(approved.errors || {}).join('; ') || 'approval failed');
       const request = findRequestById(db, requestId);
@@ -3421,7 +3459,7 @@ function runSelfTest() {
     const gapMs = db.settings.restGapMinutes * 60000;
     const sorted = result.reservations.slice().sort((a, b) => a.start - b.start || a.end - b.end);
     const urgentPlacement = result.placements[requestId];
-    const seedPlacement = result.placements['req-seed-approved'];
+    const normalPlacement = result.placements['req-selftest-normal'];
 
     check('scheduled slot is in the future and inside lab hours', () => {
       require(urgentPlacement && urgentPlacement.segments.length, 'urgent placement is missing');
@@ -3464,21 +3502,21 @@ function runSelfTest() {
     });
 
     check('urgent priority is scheduled before the older normal job', () => {
-      require(seedPlacement && seedPlacement.segments.length, 'seed normal placement is missing');
-      require(urgentPlacement.segments[0].start < seedPlacement.segments[0].start, 'urgent job did not go first');
-      return `urgent ${new Date(urgentPlacement.segments[0].start).toLocaleString()} before normal ${new Date(seedPlacement.segments[0].start).toLocaleString()}`;
+      require(normalPlacement && normalPlacement.segments.length, 'normal placement is missing');
+      require(urgentPlacement.segments[0].start < normalPlacement.segments[0].start, 'urgent job did not go first');
+      return `urgent ${new Date(urgentPlacement.segments[0].start).toLocaleString()} before normal ${new Date(normalPlacement.segments[0].start).toLocaleString()}`;
     });
 
-    const seedStartBeforeCancel = seedPlacement.segments[0].start;
-    const cancelled = cancelRequest(db, requestId, student, 'Self-test cancellation', now, { commit: false });
+    const normalStartBeforeCancel = normalPlacement.segments[0].start;
+    const cancelled = cancelRequestRecord(db, requestId, student, 'Self-test cancellation', now, { commit: false });
     check('cancelling releases reserved time and re-runs the scheduler', () => {
       require(cancelled.ok, Object.values(cancelled.errors || {}).join('; ') || 'cancellation failed');
       const cancelledRequest = findRequestById(db, requestId);
       require(cancelledRequest.status === 'cancelled', `expected cancelled status, got ${cancelledRequest.status}`);
       require(cancelledRequest.schedule.segments.length === 0, 'cancelled request still owns reserved time');
-      const seedAfter = findRequestById(db, 'req-seed-approved');
-      require(seedAfter.schedule.segments[0].start < seedStartBeforeCancel, 'remaining job did not move into the released time');
-      return `remaining job moved from ${new Date(seedStartBeforeCancel).toLocaleString()} to ${new Date(seedAfter.schedule.segments[0].start).toLocaleString()}`;
+      const normalAfter = findRequestById(db, 'req-selftest-normal');
+      require(normalAfter.schedule.segments[0].start < normalStartBeforeCancel, 'remaining job did not move into the released time');
+      return `remaining job moved from ${new Date(normalStartBeforeCancel).toLocaleString()} to ${new Date(normalAfter.schedule.segments[0].start).toLocaleString()}`;
     });
 
     saveDatabaseTo(db, tempStorage);
@@ -3516,8 +3554,8 @@ __SL.runSelfTest = runSelfTest;
 (function () {
 'use strict';
 const { DB_KEY, getStorageNotice, stateRemove, clearFiles, downloadBlob, downloadText, escapeHtml, formatDateTime, formatDate, formatTime, formatDuration, formatLongWeekday, makeId, readFileBytes } = __SL;
-const { getDb, commitDb, DEMO_CREDENTIALS, DEFAULT_SETTINGS, findAccountById, findRequestById, findSerial } = __SL;
-const { bootstrap, ensureSeedFiles, getSessionAccount, restoreDemoCredentials, login, logout, submitRequest, previewEstimate, getRequestFile, reestimateFromFile, approveRequest, rejectRequest, confirmSlot, startPrint, markPrinted, handOver, cancelRequest, rerunScheduler, createAccount, updateAccount, deleteAccount, generateSerials, assignSerial, updateSettings, resetSettings, computeReports, buildScheduleBoard, exportRequestsCsv, exportSerialsCsv, exportReportCsv, exportBackup, parseBackupText, importBackup, resetDemoData, STATUS_LABELS, PRIORITY_LABELS, MATERIALS, scheduleText, statusText, effectiveMinutes, getUploadExtensionsText, fileSizeLabel, decodeBackupBytes } = __SL;
+const { getDb, commitDb, DEFAULT_SETTINGS, findAccountById, findRequestById, findSerial } = __SL;
+const { bootstrap, ensureSeedFiles, getSessionAccount, login, logout, submitRequest, previewEstimate, getRequestFile, reestimateFromFile, approveRequest, rejectRequest, confirmSlot, startPrint, markPrinted, handOver, cancelRequest, rerunScheduler, createAccount, updateAccount, deleteAccount, generateSerials, assignSerial, updateSettings, resetSettings, computeReports, buildScheduleBoard, exportRequestsCsv, exportSerialsCsv, exportReportCsv, exportBackup, parseBackupText, importBackup, resetFactoryData, STATUS_LABELS, PRIORITY_LABELS, MATERIALS, scheduleText, statusText, effectiveMinutes, getUploadExtensionsText, fileSizeLabel, decodeBackupBytes } = __SL;
 const { MODEL_EXTENSIONS, IMAGE_EXTENSIONS } = __SL;
 const { runSelfTest } = __SL;
 const esc = escapeHtml;
@@ -3570,7 +3608,7 @@ function icon(name, size = 20) {
 }
 
 function blankLogin() {
-  return { loginId: '', password: '', serial: '' };
+  return { loginId: '', password: '' };
 }
 
 function makeDraft() {
@@ -3584,7 +3622,7 @@ function makeDraft() {
 }
 
 function makeAccountForm() {
-  return { name: '', role: 'student', loginId: '', password: '', serial: '', active: true, autoApprove: false };
+  return { name: '', role: 'student', className: '', loginId: '', password: '', serial: '', active: true, autoApprove: false };
 }
 
 function makeSettingsForm(settings) {
@@ -3631,7 +3669,7 @@ let bootstrapped = false;
 
 const VIEW_META = {
   landing: { title: 'STEAM Lab Booking System', subtitle: 'One printer, one queue, one clear schedule.' },
-  login: { title: 'Sign in', subtitle: 'Choose your role and use the credentials issued by the lab.' },
+  login: { title: 'Sign in', subtitle: 'Choose your role and sign in with your issued username and password.' },
   'student-requests': { title: 'My requests', subtitle: 'Only your print requests are shown here.' },
   'student-new': { title: 'New print request', subtitle: 'Upload a model and get a computed print-time estimate.' },
   'student-schedule': { title: 'Two-week schedule', subtitle: 'Other students’ booked time appears only as anonymous occupied blocks.' },
@@ -3643,10 +3681,10 @@ const VIEW_META = {
   'admin-schedule': { title: 'Schedule board', subtitle: 'Full visibility of booked blocks and cool-down gaps.' },
   'admin-requests': { title: 'All requests', subtitle: 'Search, filter, and run the print workflow.' },
   'admin-new-request': { title: 'Submit on behalf of a student', subtitle: 'Create a real student request using the same upload and estimator.' },
-  'admin-accounts': { title: 'Accounts', subtitle: 'Create, edit, delete, set passwords, and assign serials.' },
-  'admin-serials': { title: 'Serial numbers', subtitle: 'Bulk-generate serials and see free, assigned, and used codes.' },
+  'admin-accounts': { title: 'Accounts', subtitle: 'Create student and teacher accounts, edit usernames and passwords, and assign class and serial details.' },
+  'admin-serials': { title: 'Serial numbers', subtitle: 'Bulk-generate serials and see free versus assigned codes.' },
   'admin-settings': { title: 'Lab settings', subtitle: 'Lab hours, capacity, lead time, upload limits, and build volume.' },
-  'admin-data': { title: 'Data & backup', subtitle: 'Export JSON and CSV, import a validated backup, or reset demo data.' }
+  'admin-data': { title: 'Data & backup', subtitle: 'Export JSON and CSV, import a validated backup, or restore the two permanent administrator accounts.' }
 };
 
 const NAV = {
@@ -3677,6 +3715,18 @@ function defaultView(role) {
   if (role === 'student') return 'student-requests';
   if (role === 'teacher') return 'teacher-review';
   return 'admin-reports';
+}
+
+function viewAllowed(role, view) {
+  return (NAV[role] || []).some((item) => item.view === view);
+}
+
+function renderAccessDenied() {
+  return `
+    <section class="card" data-testid="access-denied">
+      <div class="card-header"><div><h2>Access restricted</h2><p>Your signed-in role determines which workspaces are available.</p></div></div>
+      ${emptyState('Administrator access required', 'This workspace is not available for your account. Use the sidebar to return to an allowed view.', 'key')}
+    </section>`;
 }
 
 function viewMeta(view) {
@@ -3784,7 +3834,7 @@ function renderFatalMarkup() {
       <section class="fatal-panel">
         <div class="eyebrow">Boot safety panel</div>
         <h1>The app could not start normally</h1>
-        <p>Your data was not silently cleared. Use Reset app data below to start from clean demo data.</p>
+        <p>Your data was not silently cleared. Use Reset app data below to start from the two permanent administrator accounts.</p>
         <div class="message-box error"><strong>${esc(message)}</strong></div>
         <pre>${esc(stack)}</pre>
         <div class="btn-row">
@@ -3838,15 +3888,8 @@ function renderLanding() {
 
 function renderLogin() {
   const role = state.loginRole || 'student';
-  const demo = DEMO_CREDENTIALS[role];
   const title = role === 'student' ? 'Student sign in' : role === 'teacher' ? 'Teacher sign in' : 'Admin sign in';
-  const loginLabel = role === 'admin' ? 'Admin username' : 'Login ID';
-  const serialField = role === 'admin' ? '' : `
-    <div class="form-field span-2">
-      <label for="login-serial">Serial number</label>
-      <input id="login-serial" name="serial" type="text" value="${esc(state.loginForm.serial || '')}" placeholder="${role === 'student' ? 'STU-2001' : 'T-1041'}" autocomplete="off">
-      ${fieldError('serial')}
-    </div>`;
+  const loginLabel = role === 'admin' ? 'Admin username' : 'Username';
   return `
     <main class="auth-shell">
       <section class="auth-visual">
@@ -3856,9 +3899,9 @@ function renderLogin() {
             <span class="brand-text">STEAM Lab Booking System</span>
           </div>
           <h1>${esc(title)}</h1>
-          <p>One school 3D printer, one honest queue. ${role === 'admin' ? 'Administrators use a username and password only.' : 'Your serial binds to this account the first time you sign in.'}</p>
+          <p>One school 3D printer, one honest queue. Sign in with the username and password issued by your administrator.</p>
           <div class="auth-points">
-            <div class="auth-point">${icon('check', 19)}<span>Real local persistence with an in-memory fallback for restricted previews.</span></div>
+            <div class="auth-point">${icon('check', 19)}<span>Accounts are created by an administrator; registered details appear automatically after sign-in.</span></div>
             <div class="auth-point">${icon('check', 19)}<span>File-based estimates, cool-down gaps, daily caps, and printable workflow states.</span></div>
             <div class="auth-point">${icon('check', 19)}<span>No external services, fonts, images, or analytics.</span></div>
           </div>
@@ -3870,7 +3913,7 @@ function renderLogin() {
           ${storageNoticeHtml()}
           <button class="btn ghost" type="button" data-action="back-to-roles">${icon('back', 17)} Choose another role</button>
           <h2>${esc(title)}</h2>
-          <p class="muted">Enter the ${esc(demo.label)} and password issued by the lab.</p>
+          <p class="muted">Enter the username and password issued by the lab.</p>
           <form data-form="login" data-testid="login-form" data-role="${esc(role)}" novalidate>
             <div class="form-grid">
               <div class="form-field span-2">
@@ -3883,15 +3926,13 @@ function renderLogin() {
                 <input id="login-password" name="password" type="password" value="${esc(state.loginForm.password || '')}" autocomplete="current-password">
                 ${fieldError('password')}
               </div>
-              ${serialField}
               <div class="form-field span-2">${fieldError('general')}</div>
             </div>
             <div class="btn-row">
-              <button class="btn primary" type="button" data-action="submit-form" data-form-kind="login">Sign in ${icon('arrow', 17)}</button>
-              <button class="btn" type="button" data-action="fill-demo" data-role="${esc(role)}" data-testid="fill-demo">Fill demo credentials</button>
+              <button class="btn primary" type="button" data-action="submit-form" data-form-kind="login" data-testid="login-submit">Sign in ${icon('arrow', 17)}</button>
             </div>
           </form>
-          <div class="demo-fill-note">Demo fill restores this role’s seeded credentials, then fills every field.</div>
+          <div class="auth-note">Student and teacher accounts are created by an administrator. No name, class, or serial number is needed to sign in.</div>
         </div>
       </section>
     </main>`;
@@ -3945,11 +3986,32 @@ function renderConfirmBar() {
     </div>`;
 }
 
+function renderAccountIdentity(account) {
+  const roleLabel = account.role === 'student' ? 'Student' : account.role === 'teacher' ? 'Teacher' : 'Administrator';
+  const fourth = account.role === 'student'
+    ? metric('Student serial', account.serial || 'Not assigned', 'Read-only registered serial')
+    : account.role === 'teacher'
+      ? metric('Issued serial', account.serial || 'Not required', 'Optional lab record')
+      : metric('Account scope', 'All registered users', 'Full administrator access');
+  return `
+    <section class="card" data-testid="account-identity">
+      <div class="card-header">
+        <div><h2>Registered account</h2><p>These details come directly from the account created by an administrator and are read-only here.</p></div>
+        <span class="badge neutral">${esc(roleLabel)}</span>
+      </div>
+      <div class="grid-4">
+        ${metric('Full name', account.name, 'Registered identity')}
+        ${metric('Username', account.loginId, 'Used to sign in')}
+        ${account.role === 'student' ? metric('Class', account.className || 'Not recorded', 'Assigned by administrator') : metric('Role', roleLabel, 'Account permission')}
+        ${fourth}
+      </div>
+    </section>`;
+}
+
 function renderAppShell() {
   const account = state.session;
   if (!account) return renderLanding();
-  const allowed = (NAV[account.role] || []).map((item) => item.view);
-  if (!allowed.includes(state.view)) state.view = defaultView(account.role);
+  if (!viewAllowed(account.role, state.view)) state.view = defaultView(account.role);
   return `
     <div class="app-shell">
       ${renderSidebar(account)}
@@ -3958,6 +4020,7 @@ function renderAppShell() {
           ${storageNoticeHtml()}
           ${renderTopbar(account)}
           ${renderConfirmBar()}
+          ${renderAccountIdentity(account)}
           ${renderView()}
         </div>
       </main>
@@ -3965,6 +4028,7 @@ function renderAppShell() {
 }
 
 function renderView() {
+  if (!state.session || !viewAllowed(state.session.role, state.view)) return renderAccessDenied();
   switch (state.view) {
     case 'student-requests': return renderStudentRequests();
     case 'student-new': return renderStudentNew();
@@ -4389,61 +4453,62 @@ function renderAdminAccounts() {
   const db = getDb();
   const form = state.accountForm;
   const editing = Boolean(state.editAccountId);
-  const serialOptions = db.serials.filter((serial) => serial.role === form.role && (serial.status === 'free' || serial.code === form.serial));
-  const serialField = form.role === 'admin' ? '' : `
-    <div class="form-field">
-      <label for="account-serial">Issued serial</label>
-      <select id="account-serial" name="serial" data-account-field>
-        <option value="">Choose a free serial</option>
-        ${serialOptions.map((serial) => `<option value="${esc(serial.code)}"${selected(form.serial, serial.code)}>${esc(serial.code)} · ${esc(serial.status)}</option>`).join('')}
-      </select>
-      ${fieldError('serial')}
-    </div>`;
+  const role = form.role;
+  const nameLabel = role === 'student' ? 'Student’s full name' : role === 'teacher' ? 'Teacher’s full name' : 'Administrator display name';
+  const classField = role === 'student' ? `
+    <div class="form-field"><label for="account-className">Class</label><input id="account-className" name="className" data-account-field type="text" value="${esc(form.className)}" placeholder="Class or form">${fieldError('className')}</div>` : '';
+  const serialField = role === 'student' ? `
+    <div class="form-field"><label for="account-serial">Student serial number</label><input id="account-serial" name="serial" data-account-field type="text" value="${esc(form.serial)}" placeholder="Unique STU-#### serial">${fieldError('serial')}</div>` : '';
   return `
     <section class="grid-4" style="margin-bottom:20px">
-      ${metric('Accounts', db.accounts.length, 'All roles')}
-      ${metric('Students', db.accounts.filter((account) => account.role === 'student').length, 'Can submit requests')}
+      ${metric('Accounts', db.accounts.length, 'All registered users')}
+      ${metric('Students', db.accounts.filter((account) => account.role === 'student').length, 'Created by an administrator')}
       ${metric('Teachers', db.accounts.filter((account) => account.role === 'teacher').length, 'Review and workflow')}
       ${metric('Admins', db.accounts.filter((account) => account.role === 'admin').length, 'Full access')}
     </section>
     <section class="card">
-      <div class="card-header"><div><h2>${editing ? 'Edit account' : 'Create account'}</h2><p>Passwords are stored as salted SHA-256 hashes. Used serials cannot be reassigned.</p></div></div>
+      <div class="card-header"><div><h2>${editing ? 'Edit account' : 'Create account'}</h2><p>Passwords are stored as salted hashes and are never displayed. Usernames and student serial numbers must be unique.</p></div></div>
       <form data-form="accounts" data-testid="account-form" novalidate>
         <div class="form-grid">
-          <div class="form-field"><label for="account-name">Display name</label><input id="account-name" name="name" data-account-field type="text" value="${esc(form.name)}">${fieldError('name')}</div>
-          <div class="form-field"><label for="account-role">Role</label><select id="account-role" name="role" data-account-field>${['student', 'teacher', 'admin'].map((role) => `<option value="${esc(role)}"${selected(form.role, role)}>${esc(role)}</option>`).join('')}</select>${fieldError('role')}</div>
-          <div class="form-field"><label for="account-loginId">Login ID / username</label><input id="account-loginId" name="loginId" data-account-field type="text" value="${esc(form.loginId)}">${fieldError('loginId')}</div>
+          <div class="form-field"><label for="account-name">${esc(nameLabel)}</label><input id="account-name" name="name" data-account-field type="text" value="${esc(form.name)}">${fieldError('name')}</div>
+          <div class="form-field"><label for="account-role">Role</label><select id="account-role" name="role" data-account-field>${['student', 'teacher', 'admin'].map((option) => `<option value="${esc(option)}"${selected(role, option)}>${esc(option)}</option>`).join('')}</select>${fieldError('role')}</div>
+          ${classField}
+          <div class="form-field"><label for="account-loginId">Username</label><input id="account-loginId" name="loginId" data-account-field type="text" value="${esc(form.loginId)}">${fieldError('loginId')}</div>
           <div class="form-field"><label for="account-password">${editing ? 'New password (blank keeps current)' : 'Password'}</label><input id="account-password" name="password" data-account-field type="password" value="${esc(form.password)}" autocomplete="new-password">${fieldError('password')}</div>
           ${serialField}
           <div class="form-field">
             <label>Account options</label>
             <div class="checkbox-row" style="padding-top:10px">
               <label><input type="checkbox" name="active" data-account-field${checked(form.active)}> Active</label>
-              <label><input type="checkbox" name="autoApprove" data-account-field${checked(form.autoApprove)}> Auto-approve student jobs</label>
+              <label><input type="checkbox" name="autoApprove" data-account-field${checked(form.autoApprove)}${role === 'student' ? '' : ' disabled'}> Auto-approve student jobs</label>
             </div>
           </div>
           <div class="form-field span-2">${fieldError('general')}</div>
         </div>
         <div class="btn-row" style="margin-top:18px">
-          <button class="btn primary" type="button" data-action="submit-form" data-form-kind="accounts">${icon('save', 17)} ${editing ? 'Save changes' : 'Create account'}</button>
+          <button class="btn primary" type="button" data-action="submit-form" data-form-kind="accounts" data-testid="save-account">${icon('save', 17)} ${editing ? 'Save changes' : 'Create account'}</button>
           ${editing ? `<button class="btn" type="button" data-action="cancel-edit">Cancel edit</button>` : ''}
           <button class="btn" type="button" data-action="nav" data-view="admin-serials">${icon('key', 17)} Generate serials</button>
         </div>
       </form>
     </section>
     <section class="card">
-      <div class="card-header"><div><h2>Account list</h2><p>Existing requests are preserved if an account is deleted.</p></div></div>
+      <div class="card-header"><div><h2>Account list</h2><p>All registered users are visible here. Existing requests are preserved if an account is deleted.</p></div></div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Name</th><th>Role</th><th>Login ID</th><th>Serial</th><th>Status</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Full name</th><th>Role</th><th>Username</th><th>Class</th><th>Serial</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody>${db.accounts.map((account) => {
           const serial = account.serial ? findSerial(db, account.serial) : null;
-          return `<tr>
+          const actions = account.permanent
+            ? '<span class="badge approved">Permanent</span><small>Full access · fixed account</small>'
+            : `<div class="table-actions"><button class="btn small" type="button" data-action="edit-account" data-id="${esc(account.id)}">${icon('edit', 15)} Edit</button><button class="btn small danger" type="button" data-action="delete-account" data-id="${esc(account.id)}">${icon('trash', 15)} Delete</button></div>`;
+          return `<tr data-login-id="${esc(account.loginId)}" data-testid="account-row">
             <td><strong>${esc(account.name)}</strong><small>Created ${esc(formatDate(account.createdAt))}</small></td>
             <td>${esc(account.role)}</td>
             <td>${esc(account.loginId)}</td>
-            <td>${account.serial ? `<strong>${esc(account.serial)}</strong><small>${serial ? esc(serial.status) : 'untracked'}${account.serialBoundAt ? ` · bound ${esc(formatDate(account.serialBoundAt))}` : ''}</small>` : '<small>Not required for admin</small>'}</td>
+            <td>${account.role === 'student' ? esc(account.className || '—') : '<small>Not required</small>'}</td>
+            <td>${account.serial ? `<strong>${esc(account.serial)}</strong><small>${serial ? esc(serial.status) : 'untracked'}${account.serialAssignedAt ? ` · assigned ${esc(formatDate(account.serialAssignedAt))}` : ''}</small>` : `<small>${account.role === 'student' ? 'Required' : 'Not required'}</small>`}</td>
             <td><span class="badge ${account.active ? 'handed' : 'cancelled'}">${account.active ? 'Active' : 'Inactive'}</span>${account.autoApprove ? ' <span class="badge approved">Auto-approve</span>' : ''}</td>
-            <td><div class="table-actions"><button class="btn small" type="button" data-action="edit-account" data-id="${esc(account.id)}">${icon('edit', 15)} Edit</button><button class="btn small danger" type="button" data-action="delete-account" data-id="${esc(account.id)}">${icon('trash', 15)} Delete</button></div></td>
+            <td>${actions}</td>
           </tr>`;
         }).join('')}</tbody>
       </table></div>
@@ -4454,17 +4519,16 @@ function renderAdminSerials() {
   const db = getDb();
   const free = db.serials.filter((serial) => serial.status === 'free');
   const assigned = db.serials.filter((serial) => serial.status === 'assigned');
-  const used = db.serials.filter((serial) => serial.status === 'used');
   const eligibleAccounts = (role) => db.accounts.filter((account) => account.role === role && account.active);
   return `
     <section class="grid-3" style="margin-bottom:20px">
       ${metric('Free', free.length, 'Ready to assign')}
-      ${metric('Assigned', assigned.length, 'Awaiting first sign-in')}
-      ${metric('Used', used.length, 'Bound and single-use')}
+      ${metric('Assigned', assigned.length, 'Linked to one account')}
+      ${metric('All codes', db.serials.length, 'Generated or entered')}
     </section>
     <div class="grid-2">
       <section class="card">
-        <div class="card-header"><div><h2>Bulk-generate serials</h2><p>Student codes use STU-####, teacher codes use T-####.</p></div></div>
+        <div class="card-header"><div><h2>Bulk-generate serials</h2><p>Student codes use STU-####, teacher codes use T-####. Student serials can also be entered directly on the account form.</p></div></div>
         <form data-form="generate-serials" novalidate>
           <div class="form-grid">
             <div class="form-field"><label for="serial-role">Role</label><select id="serial-role" name="role"><option value="student">Student</option><option value="teacher">Teacher</option></select>${fieldError('role')}</div>
@@ -4475,23 +4539,23 @@ function renderAdminSerials() {
       </section>
       <section class="card">
         <div class="card-header"><div><h2>Free codes</h2><p>Newly generated serials appear here immediately.</p></div></div>
-        ${free.length ? `<div class="serial-grid">${free.map((serial) => `<div class="serial-chip free">${esc(serial.code)} · ${esc(serial.role)}</div>`).join('')}</div>` : emptyState('No free serials', 'Generate a batch to issue new codes.', 'key')}
+        ${free.length ? `<div class="serial-grid">${free.map((serial) => `<div class="serial-chip free">${esc(serial.code)} · ${esc(serial.role)}</div>`).join('')}</div>` : emptyState('No free serials', 'Generate a batch or enter a unique student serial when creating an account.', 'key')}
       </section>
     </div>
     <section class="card">
-      <div class="card-header"><div><h2>Serial pool</h2><p>Free, assigned, and used codes with account assignment controls.</p></div></div>
+      <div class="card-header"><div><h2>Serial pool</h2><p>Each code is linked to at most one account. Assignment controls remain available for free codes.</p></div></div>
       ${state.errors.serialAssign ? `<div class="message-box error">${esc(state.errors.serialAssign)}</div>` : ''}
       <div class="table-wrap"><table>
-        <thead><tr><th>Serial</th><th>Role</th><th>Status</th><th>Assigned to</th><th>Bound at</th><th>Assign</th></tr></thead>
+        <thead><tr><th>Serial</th><th>Role</th><th>Status</th><th>Assigned to</th><th>Assigned at</th><th>Assign</th></tr></thead>
         <tbody>${db.serials.slice().sort((a, b) => a.code.localeCompare(b.code)).map((serial) => {
           const account = serial.assignedTo ? findAccountById(db, serial.assignedTo) : null;
           const accounts = eligibleAccounts(serial.role);
           return `<tr>
             <td><strong>${esc(serial.code)}</strong></td><td>${esc(serial.role)}</td>
-            <td><span class="badge ${serial.status === 'free' ? 'handed' : serial.status === 'assigned' ? 'approved' : 'cancelled'}">${esc(serial.status)}</span></td>
+            <td><span class="badge ${serial.status === 'free' ? 'handed' : 'approved'}">${esc(serial.status)}</span></td>
             <td>${account ? `${esc(account.name)}<small>${esc(account.loginId)}</small>` : '<small>Unassigned</small>'}</td>
-            <td>${serial.boundAt ? esc(formatDateTime(serial.boundAt)) : '<small>Not bound yet</small>'}</td>
-            <td>${serial.status === 'free' ? `<div class="table-actions"><select data-serial-select="${esc(serial.code)}" aria-label="Account for ${esc(serial.code)}"><option value="">Choose account</option>${accounts.map((item) => `<option value="${esc(item.id)}">${esc(item.name)} · ${esc(item.loginId)}</option>`).join('')}</select><button class="btn small" type="button" data-action="assign-serial" data-code="${esc(serial.code)}">Assign</button></div>` : '<small>Single-use · locked</small>'}</td>
+            <td>${serial.assignedAt ? esc(formatDateTime(serial.assignedAt)) : '<small>Not assigned yet</small>'}</td>
+            <td>${serial.status === 'free' ? `<div class="table-actions"><select data-serial-select="${esc(serial.code)}" aria-label="Account for ${esc(serial.code)}"><option value="">Choose account</option>${accounts.map((item) => `<option value="${esc(item.id)}">${esc(item.name)} · ${esc(item.loginId)}</option>`).join('')}</select><button class="btn small" type="button" data-action="assign-serial" data-code="${esc(serial.code)}">Assign</button></div>` : '<small>Assigned · linked to this account</small>'}</td>
           </tr>`;
         }).join('')}</tbody>
       </table></div>
@@ -4575,7 +4639,7 @@ function renderAdminData() {
         </div>
         <div class="form-section">
           <h3>Import a validated backup</h3>
-          <p>Only a steamlab-backup-v1 file with a valid database and file list is accepted.</p>
+          <p>Only a steamlab-backup-v2 file with a valid database and file list is accepted.</p>
           <div class="form-field"><label for="backup-file">Backup JSON file</label><input id="backup-file" data-field="backup-file" data-testid="backup-file" type="file" accept=".json,application/json"></div>
           ${state.backupFileName ? `<div class="file-pill" style="margin-top:10px">${icon('file', 17)} ${esc(state.backupFileName)}</div>` : ''}
           <div class="btn-row" style="margin-top:14px"><button class="btn" type="button" data-action="import-backup">${icon('upload', 17)} Validate & import</button></div>
@@ -4584,9 +4648,9 @@ function renderAdminData() {
         </div>
       </section>
       <section class="card">
-        <div class="card-header"><div><h2>Reset</h2><p>Restore the seeded accounts, serials, settings, and two example requests.</p></div></div>
+        <div class="card-header"><div><h2>Reset</h2><p>Restore the two permanent administrator accounts and clear all student accounts, teacher accounts, serials, settings, requests, and uploaded files.</p></div></div>
         <div class="message-box warning">${icon('alert', 17)} This clears current app data and uploaded files from the browser store. It asks for an in-app confirmation first.</div>
-        <div class="btn-row" style="margin-top:16px"><button class="btn danger" type="button" data-action="reset-demo">${icon('trash', 17)} Reset to demo data</button></div>
+        <div class="btn-row" style="margin-top:16px"><button class="btn danger" type="button" data-action="reset-factory">${icon('trash', 17)} Reset to factory accounts</button></div>
       </section>
     </div>`;
 }
@@ -4610,7 +4674,7 @@ function renderSelfTestPage() {
         ${storageNoticeHtml()}
         <div class="brand-line" style="justify-content:flex-start"><span class="brand-mark">${icon('logo', 24)}</span><span class="brand-text">In-page self-test</span></div>
         <h1>Live scheduler & persistence check</h1>
-        <p>This route seeds an isolated temporary store. It does not read or write the real app database.</p>
+        <p>This route builds an isolated temporary store. It does not read or write the real app database.</p>
         <div class="selftest-result ${result.ok ? 'pass' : 'fail'}" data-testid="selftest-result">
           ${icon(result.ok ? 'check' : 'alert', 30)}
           <span>${result.ok ? 'PASS' : 'FAIL'}${result.ok ? ` — ${result.passed} assertions passed` : ` — ${esc(result.firstFailure || 'assertion failed')}`}</span>
@@ -4635,6 +4699,7 @@ function readAccountForm(form) {
   state.accountForm = {
     name: String(data.get('name') || ''),
     role: String(data.get('role') || 'student'),
+    className: String(data.get('className') || ''),
     loginId: String(data.get('loginId') || ''),
     password: String(data.get('password') || ''),
     serial: String(data.get('serial') || ''),
@@ -4754,7 +4819,7 @@ async function handleAction(action, button, event) {
         state.loginForm = blankLogin();
         clearActionErrors();
         render();
-        toast(`${state.loginRole} sign-in opened`, 'info', 'Use Fill demo credentials if you want the seeded account.');
+        toast(`${state.loginRole} sign-in opened`, 'info', 'Enter the username and password issued by your administrator.');
         break;
       }
       case 'back-to-roles': {
@@ -4765,17 +4830,14 @@ async function handleAction(action, button, event) {
         toast('Role chooser opened', 'info');
         break;
       }
-      case 'fill-demo': {
-        const role = button.dataset.role;
-        const demo = restoreDemoCredentials(role);
-        state.loginForm = { loginId: demo.loginId, password: demo.password, serial: demo.serial || '' };
-        clearActionErrors();
-        render();
-        toast('Demo credentials filled', 'success', `Sign in as ${demo.loginId}.`);
-        break;
-      }
       case 'nav': {
-        state.view = button.dataset.view;
+        const nextView = button.dataset.view;
+        if (!state.session || !viewAllowed(state.session.role, nextView)) {
+          render();
+          toast('Access denied', 'error', 'Your role cannot open that workspace.');
+          break;
+        }
+        state.view = nextView;
         state.confirm = null;
         clearActionErrors();
         render();
@@ -4783,17 +4845,19 @@ async function handleAction(action, button, event) {
         break;
       }
       case 'logout': {
+        const role = state.session ? state.session.role : 'student';
         logout(state.session);
         state.session = null;
-        state.view = 'landing';
-        state.loginRole = null;
+        state.view = 'login';
+        state.loginRole = role;
+        state.loginForm = blankLogin();
         clearActionErrors();
         render();
-        toast('Signed out', 'success');
+        toast('Signed out', 'success', 'Sign-in page opened.');
         break;
       }
       case 'download': {
-        const file = await getRequestFile(button.dataset.id);
+        const file = await getRequestFile(button.dataset.id, state.session);
         if (!file) throw new Error('That uploaded file is no longer available in this browser.');
         downloadBlob(file.bytes, file.name, file.mime);
         toast('Download started', 'success', file.name);
@@ -4909,7 +4973,7 @@ async function handleAction(action, button, event) {
         break;
       }
       case 'rerun-scheduler': {
-        rerunScheduler();
+        rerunScheduler(state.session);
         render();
         toast('Scheduler re-run', 'success', 'Cool-down gaps, caps, and priorities were recalculated.');
         break;
@@ -4923,10 +4987,15 @@ async function handleAction(action, button, event) {
       case 'edit-account': {
         const account = findAccountById(db, button.dataset.id);
         if (!account) throw new Error('That account no longer exists.');
+        if (account.permanent) {
+          toast('Permanent administrator', 'info', 'This fixed account already has full administrator access.');
+          break;
+        }
         state.editAccountId = account.id;
         state.accountForm = {
           name: account.name,
           role: account.role,
+          className: account.className || '',
           loginId: account.loginId,
           password: '',
           serial: account.serial || '',
@@ -4948,6 +5017,10 @@ async function handleAction(action, button, event) {
       }
       case 'delete-account': {
         const account = findAccountById(db, button.dataset.id);
+        if (account && account.permanent) {
+          toast('Permanent administrator', 'info', 'This fixed account cannot be deleted.');
+          break;
+        }
         state.confirm = { type: 'delete-account', id: button.dataset.id, title: 'Delete this account?', label: account ? `${account.name} (${account.loginId}) will be removed. Existing requests stay in reports.` : 'This account will be removed.' };
         render();
         toast('Confirm account deletion', 'info', 'Use the confirmation bar above.');
@@ -4987,7 +5060,7 @@ async function handleAction(action, button, event) {
         break;
       }
       case 'export-backup': {
-        const backup = await exportBackup();
+        const backup = await exportBackup(state.session);
         downloadText('steamlab-backup.json', JSON.stringify(backup, null, 2), 'application/json;charset=utf-8');
         toast('JSON backup exported', 'success', `${backup.files.length} uploaded files included`);
         break;
@@ -5011,7 +5084,9 @@ async function handleAction(action, button, event) {
           state.backupFile = null;
           state.backupFileName = '';
           state.session = null;
-          state.view = 'landing';
+          state.view = 'login';
+          state.loginRole = 'admin';
+          state.loginForm = blankLogin();
           state.settingsForm = makeSettingsForm(getDb().settings);
           state.success.backup = `Imported ${result.requests} requests, ${result.accounts} accounts, and ${result.files} files. Sign in again.`;
           clearActionErrors();
@@ -5025,10 +5100,10 @@ async function handleAction(action, button, event) {
         }
         break;
       }
-      case 'reset-demo': {
-        state.confirm = { type: 'reset', title: 'Reset all app data?', label: 'Accounts, serials, settings, requests, and uploaded files will be replaced with demo data.' };
+      case 'reset-factory': {
+        state.confirm = { type: 'reset', title: 'Reset all app data?', label: 'All student and teacher accounts, serials, settings, requests, and uploaded files will be cleared. Only the two permanent administrator accounts will remain.' };
         render();
-        toast('Confirm demo reset', 'info', 'Use the confirmation bar above.');
+        toast('Confirm factory reset', 'info', 'Use the confirmation bar above.');
         break;
       }
       case 'rerun-selftest': {
@@ -5050,9 +5125,9 @@ async function handleAction(action, button, event) {
           location.reload();
         } catch (_) {
           const result = document.querySelector('.fatal-reset-result');
-          if (result) result.textContent = 'App data was cleared. Reload this page to start from demo data.';
+          if (result) result.textContent = 'App data was cleared. Reload this page to start from factory accounts.';
         }
-        toast('App data reset', 'success', 'Reloading with demo data.');
+        toast('App data reset', 'success', 'Reloading with factory accounts.');
         break;
       }
       default:
@@ -5106,10 +5181,11 @@ async function handleConfirmYes() {
       toast('Account deleted', 'success', 'Existing requests were preserved.');
     }
   } else if (confirmation.type === 'reset') {
-    await resetDemoData();
+    await resetFactoryData(state.session);
     state.session = null;
-    state.view = 'landing';
-    state.loginRole = null;
+    state.view = 'login';
+    state.loginRole = 'admin';
+    state.loginForm = blankLogin();
     state.confirm = null;
     state.draft = makeDraft();
     state.lastSubmission = null;
@@ -5118,7 +5194,7 @@ async function handleConfirmYes() {
     state.settingsForm = makeSettingsForm(getDb().settings);
     clearActionErrors();
     render();
-    toast('Demo data restored', 'success', 'Sign in with the seeded credentials.');
+    toast('Factory accounts restored', 'success', 'Only the two permanent administrator accounts remain.');
   }
 }
 
@@ -5132,8 +5208,7 @@ async function handleSubmit(event) {
       const data = new FormData(form);
       state.loginForm = {
         loginId: String(data.get('loginId') || ''),
-        password: String(data.get('password') || ''),
-        serial: String(data.get('serial') || '')
+        password: String(data.get('password') || '')
       };
       const result = login({ role: form.dataset.role, ...state.loginForm });
       if (!result.ok) {
@@ -5224,8 +5299,7 @@ function handleInput(event) {
     const data = new FormData(loginForm);
     state.loginForm = {
       loginId: String(data.get('loginId') || ''),
-      password: String(data.get('password') || ''),
-      serial: String(data.get('serial') || '')
+      password: String(data.get('password') || '')
     };
   }
   const accountForm = target.closest('form[data-form="accounts"]');
@@ -5270,8 +5344,9 @@ async function handleChange(event) {
     readAccountForm(accountForm);
     if (roleChanged) {
       state.accountForm.serial = '';
+      if (state.accountForm.role !== 'student') state.accountForm.className = '';
       render();
-      toast(`${state.accountForm.role} serial options updated`, 'info');
+      toast(`${state.accountForm.role} account fields updated`, 'info');
     }
     return;
   }

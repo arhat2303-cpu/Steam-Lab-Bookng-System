@@ -1,14 +1,14 @@
 import {
   formatDateTime, formatDate, formatTime, formatDuration, formatLongWeekday,
   dayKey, startOfDay, parseHHMM, csvEscape, makeId, hashPassword, makeSalt,
-  verifyPassword, readFileBytes, putFile, getFile, clearFiles, bytesToBase64,
+  PASSWORD_HASH_ITERATIONS, verifyPassword, readFileBytes, putFile, getFile, clearFiles, bytesToBase64,
   base64ToBytes, utf8ToString, toBytes, getStorageNotice, clampNumber
 } from './core.js';
 import {
-  DEFAULT_SETTINGS, VALID_PRIORITIES, ACTIVE_STATUSES, DEMO_CREDENTIALS, DEMO_ACCOUNTS,
-  getDb, commitDb, replaceDb, resetToSeedDatabase, findAccountById, findAccountByLogin,
+  DEFAULT_SETTINGS, VALID_PRIORITIES, ACTIVE_STATUSES, PERMANENT_ADMINS,
+  getDb, commitDb, replaceDb, resetToFactoryDatabase, findAccountById, findAccountByLogin,
   findRequestById, findSerial, makeRequestCode, nextSerialCodes, createAccountRecord,
-  validateDatabase, serialFormat
+  validateDatabase, serialFormat, publicAccount
 } from './db.js';
 import { estimateFromFile, isSupportedUpload, getExtension, MODEL_EXTENSIONS, IMAGE_EXTENSIONS } from './estimate.js';
 import { scheduleRequests } from './scheduler.js';
@@ -44,6 +44,39 @@ function normaliseSerial(value) {
 
 function serialPattern(role) {
   return role === 'student' ? /^STU-\d{4}$/ : /^T-\d{4}$/;
+}
+
+const PERMANENT_ADMIN_IDS = new Set(PERMANENT_ADMINS.map((admin) => admin.id));
+const PERMANENT_ADMIN_LOGINS = new Set(PERMANENT_ADMINS.map((admin) => admin.loginId.toUpperCase()));
+
+function isPermanentAdmin(account) {
+  if (!account) return false;
+  return Boolean(account.permanent)
+    || PERMANENT_ADMIN_IDS.has(account.id)
+    || PERMANENT_ADMIN_LOGINS.has(String(account.loginId || '').toUpperCase());
+}
+
+function requireSession(actor) {
+  const session = getSessionAccount();
+  if (!session) throw new Error('Sign in is required for this action.');
+  if (actor && actor.id && actor.id !== session.id) throw new Error('The signed-in account does not match this request.');
+  return session;
+}
+
+function requireAdmin(actor) {
+  const session = requireSession(actor);
+  if (session.role !== 'admin') throw new Error('Administrator sign-in is required for account management.');
+  return session;
+}
+
+function assertActorRole(actor, roles) {
+  if (!actor || !roles.includes(actor.role)) throw new Error('This account does not have permission for that action.');
+}
+
+function requireSessionActor(actor, roles) {
+  const session = requireSession(actor);
+  assertActorRole(session, roles);
+  return session;
 }
 
 function commitIfRequested(options) {
@@ -189,92 +222,19 @@ export function getSessionAccount() {
     commitDb();
     return null;
   }
-  return account;
+  return publicAccount(account);
 }
 
 function releaseAccountSerial(db, account) {
   if (!account || !account.serial) return;
   const record = findSerial(db, account.serial);
-  if (record) {
-    if (record.status === 'used') record.assignedTo = null;
-    else {
-      record.status = 'free';
-      record.assignedTo = null;
-      record.boundAt = null;
-      delete db.serialBindings[record.code];
-    }
+  if (record && record.assignedTo === account.id) {
+    record.status = 'free';
+    record.assignedTo = null;
+    record.assignedAt = null;
   }
   account.serial = null;
-  account.serialBoundAt = null;
-}
-
-export function restoreDemoCredentials(role, now = Date.now()) {
-  const db = getDb();
-  const key = role === 'student2' ? 'student2' : role;
-  const demo = DEMO_ACCOUNTS.find((entry) => entry.key === key) || DEMO_ACCOUNTS.find((entry) => entry.key === 'student');
-  let account = findAccountByLogin(db, demo.loginId);
-  if (!account) {
-    const id = db.accounts.some((entry) => entry.id === demo.id) ? makeId('acc') : demo.id;
-    account = createAccountRecord({ ...demo, id }, now);
-    db.accounts.push(account);
-  }
-  const oldSerial = account.serial;
-  account.name = demo.name;
-  account.role = demo.role;
-  account.loginId = demo.loginId;
-  account.active = true;
-  account.autoApprove = Boolean(demo.autoApprove);
-  account.salt = account.salt || makeSalt();
-  account.passwordHash = hashPassword(demo.password, account.salt);
-  account.passwordUpdatedAt = now;
-
-  let serialCode = normaliseSerial(demo.serial);
-  if (demo.serial) {
-    let record = findSerial(db, serialCode);
-    const binding = db.serialBindings[serialCode];
-    const usable = !record
-      || record.status === 'free'
-      || (record.assignedTo === account.id && (!binding || binding === account.id))
-      || (record.status === 'used' && binding === account.id)
-      || (record.assignedTo === null && record.status !== 'used');
-    if (!usable) {
-      serialCode = nextSerialCodes(db, demo.role, 1)[0];
-      record = null;
-    }
-    if (!record) {
-      record = { code: serialCode, role: demo.role, status: 'free', assignedTo: null, boundAt: null, createdAt: now };
-      db.serials.push(record);
-    }
-    const boundToThis = db.serialBindings[serialCode] === account.id;
-    if (boundToThis || record.status === 'used') {
-      record.status = 'used';
-      record.assignedTo = account.id;
-      record.boundAt = record.boundAt || now;
-      db.serialBindings[serialCode] = account.id;
-      account.serialBoundAt = record.boundAt;
-    } else {
-      record.status = 'assigned';
-      record.assignedTo = account.id;
-      record.boundAt = null;
-      account.serialBoundAt = null;
-    }
-    account.serial = serialCode;
-    if (oldSerial && oldSerial !== serialCode) {
-      const previous = findSerial(db, oldSerial);
-      if (previous && previous.status !== 'used') {
-        previous.status = 'free';
-        previous.assignedTo = null;
-        previous.boundAt = null;
-        delete db.serialBindings[oldSerial];
-      }
-    }
-  } else {
-    account.serial = null;
-    account.serialBoundAt = null;
-  }
-  addActivity(db, 'system', 'demo', `Restored demo credentials for ${demo.loginId}.`, now);
-  commitDb();
-  return { loginId: demo.loginId, password: demo.password, serial: serialCode };
+  account.serialAssignedAt = null;
 }
 
 export function login(payload, now = Date.now()) {
@@ -282,58 +242,21 @@ export function login(payload, now = Date.now()) {
   const role = String(payload.role || '');
   const loginId = String(payload.loginId || '').trim();
   const password = String(payload.password || '');
-  const serial = normaliseSerial(payload.serial);
   const errors = {};
-  if (!loginId) errors.loginId = role === 'admin' ? 'Enter the admin username.' : 'Enter your login ID.';
+  if (!['student', 'teacher', 'admin'].includes(role)) errors.general = 'Choose a valid role.';
+  if (!loginId) errors.loginId = 'Enter your username.';
   if (!password) errors.password = 'Enter your password.';
-  if (role !== 'admin' && !serial) errors.serial = 'Enter your issued serial number.';
   if (Object.keys(errors).length) return { ok: false, errors };
 
   const account = findAccountByLogin(db, loginId, role);
-  if (!account || !account.active) {
-    errors.loginId = role === 'admin' ? 'No active admin account matches that username.' : 'No active account matches that login ID and role.';
+  if (!account || !account.active || !verifyPassword(password, account)) {
+    errors.password = 'Username or password is incorrect.';
     return { ok: false, errors };
-  }
-  if (!verifyPassword(password, account.salt, account.passwordHash)) {
-    errors.password = 'Password is incorrect.';
-    return { ok: false, errors };
-  }
-  if (role !== 'admin') {
-    if (!serialPattern(role).test(serial)) {
-      errors.serial = role === 'student' ? 'Student serials use STU-####.' : 'Teacher serials use T-####.';
-      return { ok: false, errors };
-    }
-    if (normaliseSerial(account.serial) !== serial) {
-      errors.serial = 'That serial is not assigned to this account.';
-      return { ok: false, errors };
-    }
-    const record = findSerial(db, serial);
-    if (!record || record.role !== role) {
-      errors.serial = 'That serial has not been issued for this role.';
-      return { ok: false, errors };
-    }
-    const binding = db.serialBindings[serial];
-    if ((binding && binding !== account.id) || (record.status === 'used' && !binding)) {
-      errors.serial = 'This serial is single-use and is already bound to another account.';
-      return { ok: false, errors };
-    }
-    if (!binding) {
-      db.serialBindings[serial] = account.id;
-      account.serialBoundAt = now;
-      record.status = 'used';
-      record.assignedTo = account.id;
-      record.boundAt = now;
-    } else {
-      record.status = 'used';
-      record.assignedTo = account.id;
-      record.boundAt = record.boundAt || now;
-      account.serialBoundAt = account.serialBoundAt || record.boundAt;
-    }
   }
   db.session = { accountId: account.id, role: account.role, name: account.name, loginAt: now };
   addActivity(db, account, 'login', `${account.name} signed in as ${account.role}.`, now);
   commitDb();
-  return { ok: true, account, errors: {} };
+  return { ok: true, account: publicAccount(account), errors: {} };
 }
 
 export function logout(actor, now = Date.now()) {
@@ -411,6 +334,7 @@ export async function previewEstimate(file, form, now = Date.now()) {
 }
 
 export function createRequestRecord(db, payload, actor, now = Date.now()) {
+  assertActorRole(actor, ['student', 'admin']);
   const studentId = actor && actor.role === 'admin' ? String(payload.studentId || '') : (actor && actor.id);
   const student = findAccountById(db, studentId);
   const errors = validateRequestFields(db, payload, actor, studentId);
@@ -453,7 +377,8 @@ export function createRequestRecord(db, payload, actor, now = Date.now()) {
 
 export async function submitRequest(payload, actor, now = Date.now()) {
   const db = getDb();
-  const preflight = validateRequestFields(db, payload, actor, actor.role === 'admin' ? payload.studentId : actor.id);
+  const session = requireSessionActor(actor, ['student', 'admin']);
+  const preflight = validateRequestFields(db, payload, session, session.role === 'admin' ? payload.studentId : session.id);
   const fileErrors = validateUpload(db, payload.file);
   const errors = { ...preflight, ...fileErrors };
   if (Object.keys(errors).length) return { ok: false, errors };
@@ -469,16 +394,20 @@ export async function submitRequest(payload, actor, now = Date.now()) {
     mime: payload.file.type || 'application/octet-stream',
     pointer
   };
-  const created = createRequestRecord(db, { ...payload, file: fileRecord, estimate: preview.estimate }, actor, now);
+  const created = createRequestRecord(db, { ...payload, file: fileRecord, estimate: preview.estimate }, session, now);
   if (!created.ok) return created;
   commitDb();
   return created;
 }
 
-export async function getRequestFile(id) {
+export async function getRequestFile(id, actor) {
+  const session = requireSession(actor);
   const db = getDb();
   const request = findRequestById(db, id);
   if (!request || !request.file || !request.file.pointer) return null;
+  if (session.role === 'student' && request.studentId !== session.id) {
+    throw new Error('Students can download only their own uploaded files.');
+  }
   const stored = await getFile(request.file.pointer);
   if (!stored) return null;
   return {
@@ -489,6 +418,7 @@ export async function getRequestFile(id) {
 }
 
 export async function reestimateFromFile(id, actor, now = Date.now()) {
+  const session = requireSessionActor(actor, ['teacher', 'admin']);
   const db = getDb();
   const request = findRequestById(db, id);
   if (!request) throw new Error('That request no longer exists.');
@@ -507,12 +437,13 @@ export async function reestimateFromFile(id, actor, now = Date.now()) {
   estimate.previousMinutes = Number(request.estimate.minutes) || null;
   request.estimate = estimate;
   if (request.status === 'approved') runScheduler(db, now);
-  addActivity(db, actor, 'estimate', `${request.code} re-estimated from ${request.file.name}.`, now);
+  addActivity(db, session, 'estimate', `${request.code} re-estimated from ${request.file.name}.`, now);
   commitDb();
   return estimate;
 }
 
-export function approveRequest(db, id, options, actor, now = Date.now()) {
+export function approveRequestRecord(db, id, options, actor, now = Date.now()) {
+  assertActorRole(actor, ['teacher', 'admin']);
   const request = findRequestById(db, id);
   if (!request || request.status !== 'pending') return { ok: false, errors: { general: 'Only pending requests can be approved.' } };
   const errors = {};
@@ -541,6 +472,7 @@ export function approveRequest(db, id, options, actor, now = Date.now()) {
 }
 
 export function rejectRequest(db, id, reason, actor, now = Date.now()) {
+  const session = requireSessionActor(actor, ['teacher', 'admin']);
   const request = findRequestById(db, id);
   if (!request || request.status !== 'pending') return { ok: false, errors: { reason: 'Only pending requests can be rejected.' } };
   const cleanReason = String(reason || '').trim();
@@ -549,23 +481,25 @@ export function rejectRequest(db, id, reason, actor, now = Date.now()) {
   request.rejectionReason = cleanReason;
   request.schedule = { segments: [], reason: 'Rejected; no printer time is reserved.', scheduledAt: null, fixed: false, releasedAt: now };
   runScheduler(db, now);
-  addActivity(db, actor, 'reject', `${request.code} rejected: ${cleanReason}`, now);
+  addActivity(db, session, 'reject', `${request.code} rejected: ${cleanReason}`, now);
   commitDb();
   return { ok: true, errors: {}, request };
 }
 
 export function confirmSlot(db, id, actor, now = Date.now()) {
+  const session = requireSessionActor(actor, ['teacher', 'admin']);
   const request = findRequestById(db, id);
   if (!request || request.status !== 'approved') return { ok: false, errors: { general: 'Only approved requests have a slot to confirm.' } };
   if (!request.schedule.segments.length) return { ok: false, errors: { general: 'This request has no scheduled slot yet.' } };
   request.slotConfirmedAt = now;
-  request.slotConfirmedBy = actor.id;
-  addActivity(db, actor, 'confirm', `${request.code} slot confirmed for ${scheduleText(request)}.`, now);
+  request.slotConfirmedBy = session.id;
+  addActivity(db, session, 'confirm', `${request.code} slot confirmed for ${scheduleText(request)}.`, now);
   commitDb();
   return { ok: true, errors: {}, request };
 }
 
 export function startPrint(db, id, actor, now = Date.now()) {
+  const session = requireSessionActor(actor, ['teacher', 'admin']);
   const request = findRequestById(db, id);
   if (!request || request.status !== 'approved') return { ok: false, errors: { general: 'Start print is available only for approved requests.' } };
   if (!request.slotConfirmedAt) return { ok: false, errors: { general: 'Confirm the slot before starting the print.' } };
@@ -575,12 +509,13 @@ export function startPrint(db, id, actor, now = Date.now()) {
   request.schedule.fixed = true;
   request.schedule.reason = 'Printing in progress; this job is locked and will not be moved.';
   runScheduler(db, now);
-  addActivity(db, actor, 'start', `${request.code} started printing; schedule locked.`, now);
+  addActivity(db, session, 'start', `${request.code} started printing; schedule locked.`, now);
   commitDb();
   return { ok: true, errors: {}, request };
 }
 
 export function markPrinted(db, id, actor, now = Date.now()) {
+  const session = requireSessionActor(actor, ['teacher', 'admin']);
   const request = findRequestById(db, id);
   if (!request || request.status !== 'printing') return { ok: false, errors: { general: 'Mark printed is available only while a job is printing.' } };
   request.status = 'printed';
@@ -588,24 +523,26 @@ export function markPrinted(db, id, actor, now = Date.now()) {
   request.workflow.printMinutes = effectiveMinutes(request);
   request.schedule = { segments: [], reason: 'Released after printing; future reserved time is available again.', scheduledAt: null, fixed: false, releasedAt: now };
   runScheduler(db, now);
-  addActivity(db, actor, 'printed', `${request.code} marked printed; reserved time released.`, now);
+  addActivity(db, session, 'printed', `${request.code} marked printed; reserved time released.`, now);
   commitDb();
   return { ok: true, errors: {}, request };
 }
 
 export function handOver(db, id, actor, now = Date.now()) {
+  const session = requireSessionActor(actor, ['teacher', 'admin']);
   const request = findRequestById(db, id);
   if (!request || request.status !== 'printed') return { ok: false, errors: { general: 'Hand-over is available only after a job is printed.' } };
   request.status = 'handed';
   request.workflow.handedAt = now;
   request.schedule = { segments: [], reason: 'Released after hand-over.', scheduledAt: null, fixed: false, releasedAt: now };
   runScheduler(db, now);
-  addActivity(db, actor, 'handover', `${request.code} handed to ${request.studentName}.`, now);
+  addActivity(db, session, 'handover', `${request.code} handed to ${request.studentName}.`, now);
   commitDb();
   return { ok: true, errors: {}, request };
 }
 
-export function cancelRequest(db, id, actor, reason, now = Date.now(), options = {}) {
+export function cancelRequestRecord(db, id, actor, reason, now = Date.now(), options = {}) {
+  assertActorRole(actor, ['student', 'teacher', 'admin']);
   const request = findRequestById(db, id);
   if (!request) return { ok: false, errors: { general: 'That request no longer exists.' } };
   if (!['pending', 'approved'].includes(request.status)) return { ok: false, errors: { general: 'Only pending or approved requests can be cancelled.' } };
@@ -619,120 +556,150 @@ export function cancelRequest(db, id, actor, reason, now = Date.now(), options =
   return { ok: true, errors: {}, request };
 }
 
-export function rerunScheduler(now = Date.now()) {
+export function approveRequest(db, id, options, actor, now = Date.now()) {
+  const session = requireSessionActor(actor, ['teacher', 'admin']);
+  return approveRequestRecord(db, id, options, session, now);
+}
+
+export function cancelRequest(db, id, actor, reason, now = Date.now(), options = {}) {
+  const session = requireSessionActor(actor, ['student', 'teacher', 'admin']);
+  return cancelRequestRecord(db, id, session, reason, now, options);
+}
+
+export function rerunScheduler(actor, now = Date.now()) {
+  const session = requireSessionActor(actor, ['teacher', 'admin']);
   const db = getDb();
   const outcome = runScheduler(db, now);
   commitDb();
-  addActivity(db, 'system', 'schedule', 'Scheduler re-run manually.', now);
+  addActivity(db, session, 'schedule', 'Scheduler re-run manually.', now);
   commitDb();
   return outcome;
 }
 
 function validateAccountInput(db, raw, mode, currentAccountId = null) {
   const errors = {};
+  const current = currentAccountId ? findAccountById(db, currentAccountId) : null;
   const role = String(raw.role || '');
   const loginId = String(raw.loginId || '').trim();
   const name = String(raw.name || '').trim();
+  const className = String(raw.className || '').trim();
   const password = String(raw.password || '');
   const serial = normaliseSerial(raw.serial);
-  if (!['student', 'teacher', 'admin'].includes(role)) errors.role = 'Choose a valid role.';
-  if (!name) errors.name = 'Enter a display name.';
-  if (!loginId) errors.loginId = 'Enter a login ID or username.';
-  if (db.accounts.some((account) => account.id !== currentAccountId && account.loginId.toLowerCase() === loginId.toLowerCase())) {
-    errors.loginId = 'That login ID is already used by another account.';
+  if (current && isPermanentAdmin(current)) {
+    errors.general = 'Permanent administrator accounts are fixed and cannot be changed.';
   }
-  if ((mode === 'create' || password) && password.length < 4) errors.password = 'Use at least 4 characters, or leave blank to keep the current password.';
-  if (role !== 'admin') {
-    if (!serial) errors.serial = 'Assign an issued serial number.';
-    else if (!serialPattern(role).test(serial)) errors.serial = role === 'student' ? 'Student serials use STU-####.' : 'Teacher serials use T-####.';
+  if (!['student', 'teacher', 'admin'].includes(role)) errors.role = 'Choose a valid role.';
+  if (!name) errors.name = role === 'student' ? 'Enter the student’s full name.' : role === 'teacher' ? 'Enter the teacher’s full name.' : 'Enter a display name.';
+  if (!loginId) errors.loginId = 'Enter a username.';
+  if (db.accounts.some((account) => account.id !== currentAccountId && account.loginId.toLowerCase() === loginId.toLowerCase())) {
+    errors.loginId = 'That username is already used by another account.';
+  }
+  if ((mode === 'create' || password) && password.length < 6) {
+    errors.password = 'Use at least 6 characters, or leave blank to keep the current password.';
+  }
+  if (role === 'student') {
+    if (!className) errors.className = 'Enter the student’s class.';
+    if (!serial) errors.serial = 'Enter a unique student serial number.';
+    else if (!serialPattern('student').test(serial)) errors.serial = 'Student serial numbers use STU-####.';
     else {
+      const duplicateAccount = db.accounts.some((account) => account.id !== currentAccountId
+        && account.role === 'student'
+        && normaliseSerial(account.serial) === serial);
       const record = findSerial(db, serial);
-      if (!record || record.role !== role) errors.serial = 'Generate this serial first; it is not in the issued pool.';
-      else if (record.status === 'used' && db.serialBindings[serial] !== currentAccountId) errors.serial = 'That serial is single-use and already bound to another account.';
-      else if (record.status === 'assigned' && record.assignedTo && record.assignedTo !== currentAccountId) errors.serial = 'That serial is assigned to a different account.';
+      if (duplicateAccount) errors.serial = 'That student serial number is already assigned to another account.';
+      else if (record && record.role !== 'student') errors.serial = 'That serial belongs to a teacher account.';
+      else if (record && record.assignedTo && record.assignedTo !== currentAccountId) errors.serial = 'That serial number is already assigned to another account.';
     }
   }
   return errors;
 }
 
 function assignSerialToAccount(db, account, code, now) {
-  const record = findSerial(db, code);
-  if (!record) return;
-  if (db.serialBindings[code] === account.id) {
-    record.status = 'used';
-    record.boundAt = record.boundAt || now;
-    account.serialBoundAt = record.boundAt;
-  } else {
-    record.status = 'assigned';
-    record.boundAt = null;
-    account.serialBoundAt = null;
+  const serial = normaliseSerial(code);
+  if (!serial) return;
+  let record = findSerial(db, serial);
+  if (!record) {
+    record = { code: serial, role: account.role, status: 'free', assignedTo: null, assignedAt: null, createdAt: now };
+    db.serials.push(record);
   }
+  record.status = 'assigned';
   record.assignedTo = account.id;
-  account.serial = code;
+  record.assignedAt = now;
+  account.serial = serial;
+  account.serialAssignedAt = now;
 }
 
 export function createAccount(raw, actor, now = Date.now()) {
+  const admin = requireAdmin(actor);
   const db = getDb();
   const errors = validateAccountInput(db, raw, 'create');
   if (Object.keys(errors).length) return { ok: false, errors };
   const account = createAccountRecord({
     role: raw.role,
     name: raw.name,
+    className: raw.role === 'student' ? raw.className : '',
     loginId: raw.loginId,
     password: raw.password,
-    serial: raw.role === 'admin' ? null : normaliseSerial(raw.serial),
+    serial: raw.role === 'student' ? normaliseSerial(raw.serial) : null,
     active: raw.active !== false,
-    autoApprove: raw.role === 'student' && Boolean(raw.autoApprove)
+    autoApprove: raw.role === 'student' && Boolean(raw.autoApprove),
+    permanent: false
   }, now);
   db.accounts.push(account);
   if (account.serial) assignSerialToAccount(db, account, account.serial, now);
-  addActivity(db, actor, 'account-create', `Created ${account.role} account ${account.loginId}.`, now);
+  addActivity(db, admin, 'account-create', `Created ${account.role} account ${account.loginId}.`, now);
   commitDb();
-  return { ok: true, errors: {}, account };
+  return { ok: true, errors: {}, account: publicAccount(account) };
 }
 
 export function updateAccount(id, raw, actor, now = Date.now()) {
+  const admin = requireAdmin(actor);
   const db = getDb();
   const account = findAccountById(db, id);
   if (!account) return { ok: false, errors: { general: 'That account no longer exists.' } };
+  if (isPermanentAdmin(account)) return { ok: false, errors: { general: 'Permanent administrator accounts are fixed and cannot be changed.' } };
   const errors = validateAccountInput(db, raw, 'edit', id);
   if (Object.keys(errors).length) return { ok: false, errors };
-  const oldSerial = account.serial;
-  const newSerial = raw.role === 'admin' ? null : normaliseSerial(raw.serial);
-  if (oldSerial !== newSerial) releaseAccountSerial(db, account);
+  const newSerial = raw.role === 'student' ? normaliseSerial(raw.serial) : null;
+  if (account.serial !== newSerial) releaseAccountSerial(db, account);
   account.role = raw.role;
   account.name = String(raw.name).trim();
+  account.className = raw.role === 'student' ? String(raw.className || '').trim() : '';
   account.loginId = String(raw.loginId).trim();
   account.active = raw.active !== false;
   account.autoApprove = raw.role === 'student' && Boolean(raw.autoApprove);
   if (String(raw.password || '')) {
     account.salt = makeSalt();
-    account.passwordHash = hashPassword(raw.password, account.salt);
+    account.passwordHash = hashPassword(raw.password, account.salt, PASSWORD_HASH_ITERATIONS);
+    account.hashIterations = PASSWORD_HASH_ITERATIONS;
     account.passwordUpdatedAt = now;
   }
   if (newSerial) assignSerialToAccount(db, account, newSerial, now);
-  else account.serialBoundAt = null;
-  addActivity(db, actor, 'account-update', `Updated account ${account.loginId}.`, now);
+  else account.serialAssignedAt = null;
+  addActivity(db, admin, 'account-update', `Updated account ${account.loginId}.`, now);
   commitDb();
-  return { ok: true, errors: {}, account };
+  return { ok: true, errors: {}, account: publicAccount(account) };
 }
 
 export function deleteAccount(id, actor, now = Date.now()) {
+  const admin = requireAdmin(actor);
   const db = getDb();
   const account = findAccountById(db, id);
   if (!account) return { ok: false, errors: { general: 'That account no longer exists.' } };
+  if (isPermanentAdmin(account)) return { ok: false, errors: { general: 'Permanent administrator accounts cannot be deleted.' } };
   if (db.session && db.session.accountId === id) return { ok: false, errors: { general: 'You cannot delete the account you are signed in with.' } };
   if (account.role === 'admin' && db.accounts.filter((entry) => entry.role === 'admin' && entry.active).length <= 1) {
     return { ok: false, errors: { general: 'The last active admin account cannot be deleted.' } };
   }
   releaseAccountSerial(db, account);
   db.accounts = db.accounts.filter((entry) => entry.id !== id);
-  addActivity(db, actor, 'account-delete', `Deleted account ${account.loginId}. Existing requests were kept.`, now);
+  addActivity(db, admin, 'account-delete', `Deleted account ${account.loginId}. Existing requests were kept.`, now);
   commitDb();
   return { ok: true, errors: {} };
 }
 
 export function generateSerials(raw, actor, now = Date.now()) {
+  const admin = requireAdmin(actor);
   const db = getDb();
   const role = String(raw.role || '');
   const count = Number(raw.count);
@@ -741,13 +708,14 @@ export function generateSerials(raw, actor, now = Date.now()) {
   if (!Number.isInteger(count) || count < 1 || count > 50) errors.count = 'Generate between 1 and 50 serials.';
   if (Object.keys(errors).length) return { ok: false, errors };
   const codes = nextSerialCodes(db, role, count);
-  for (const code of codes) db.serials.push({ code, role, status: 'free', assignedTo: null, boundAt: null, createdAt: now });
-  addActivity(db, actor, 'serials', `Generated ${codes.length} ${role} serial${codes.length === 1 ? '' : 's'}.`, now);
+  for (const code of codes) db.serials.push({ code, role, status: 'free', assignedTo: null, assignedAt: null, createdAt: now });
+  addActivity(db, admin, 'serials', `Generated ${codes.length} ${role} serial${codes.length === 1 ? '' : 's'}.`, now);
   commitDb();
   return { ok: true, errors: {}, codes };
 }
 
 export function assignSerial(raw, actor, now = Date.now()) {
+  const admin = requireAdmin(actor);
   const db = getDb();
   const code = normaliseSerial(raw.code);
   const account = findAccountById(db, raw.accountId);
@@ -759,9 +727,9 @@ export function assignSerial(raw, actor, now = Date.now()) {
   if (Object.keys(errors).length) return { ok: false, errors };
   releaseAccountSerial(db, account);
   assignSerialToAccount(db, account, code, now);
-  addActivity(db, actor, 'serial-assign', `${code} assigned to ${account.loginId}.`, now);
+  addActivity(db, admin, 'serial-assign', `${code} assigned to ${account.loginId}.`, now);
   commitDb();
-  return { ok: true, errors: {}, code, account };
+  return { ok: true, errors: {}, code, account: publicAccount(account) };
 }
 
 export function validateSettingsInput(raw) {
@@ -797,21 +765,23 @@ export function validateSettingsInput(raw) {
 }
 
 export function updateSettings(raw, actor, now = Date.now()) {
+  const admin = requireAdmin(actor);
   const db = getDb();
   const validation = validateSettingsInput(raw);
   if (Object.keys(validation.errors).length) return { ok: false, errors: validation.errors };
   db.settings = validation.settings;
   runScheduler(db, now);
-  addActivity(db, actor, 'settings', 'Lab settings updated; schedule recalculated.', now);
+  addActivity(db, admin, 'settings', 'Lab settings updated; schedule recalculated.', now);
   commitDb();
   return { ok: true, errors: {}, settings: db.settings };
 }
 
 export function resetSettings(actor, now = Date.now()) {
+  const admin = requireAdmin(actor);
   const db = getDb();
   db.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
   runScheduler(db, now);
-  addActivity(db, actor, 'settings', 'Lab settings reset to defaults; schedule recalculated.', now);
+  addActivity(db, admin, 'settings', 'Lab settings reset to defaults; schedule recalculated.', now);
   commitDb();
   return { ok: true, errors: {}, settings: db.settings };
 }
@@ -985,10 +955,10 @@ export function exportRequestsCsv(db) {
 }
 
 export function exportSerialsCsv(db) {
-  const header = ['Serial', 'Role', 'Status', 'Assigned to', 'Bound at'];
+  const header = ['Serial', 'Role', 'Status', 'Assigned to', 'Assigned at'];
   const rows = db.serials.map((serial) => {
     const account = serial.assignedTo ? findAccountById(db, serial.assignedTo) : null;
-    return [serial.code, serial.role, serial.status, account ? `${account.name} (${account.loginId})` : '', serial.boundAt ? formatDateTime(serial.boundAt) : ''];
+    return [serial.code, serial.role, serial.status, account ? `${account.name} (${account.loginId})` : '', serial.assignedAt ? formatDateTime(serial.assignedAt) : ''];
   });
   return [header, ...rows].map((row) => row.map(csvEscape).join(',')).join('\r\n');
 }
@@ -1004,7 +974,8 @@ export function exportReportCsv(db) {
   return rows.map((row) => row.map(csvEscape).join(',')).join('\r\n');
 }
 
-export async function exportBackup(now = Date.now()) {
+export async function exportBackup(actor, now = Date.now()) {
+  requireAdmin(actor);
   const db = getDb();
   const validDb = validateDatabase(db);
   const files = [];
@@ -1023,7 +994,7 @@ export async function exportBackup(now = Date.now()) {
       base64: bytesToBase64(stored.bytes)
     });
   }
-  return { format: 'steamlab-backup-v1', createdAt: now, db: validDb, files };
+  return { format: 'steamlab-backup-v2', createdAt: now, db: validDb, files };
 }
 
 export function parseBackupText(text) {
@@ -1033,14 +1004,15 @@ export function parseBackupText(text) {
   } catch (_) {
     throw new Error('Backup is not valid JSON.');
   }
-  if (!isObject(payload) || payload.format !== 'steamlab-backup-v1' || !isObject(payload.db) || !Array.isArray(payload.files)) {
-    throw new Error('Backup must be a steamlab-backup-v1 JSON object with db and files.');
+  if (!isObject(payload) || payload.format !== 'steamlab-backup-v2' || !isObject(payload.db) || !Array.isArray(payload.files)) {
+    throw new Error('Backup must be a steamlab-backup-v2 JSON object with db and files.');
   }
   return payload;
 }
 
 export async function importBackup(payload, actor, now = Date.now()) {
-  if (!isObject(payload) || payload.format !== 'steamlab-backup-v1' || !isObject(payload.db) || !Array.isArray(payload.files)) {
+  const admin = requireAdmin(actor);
+  if (!isObject(payload) || payload.format !== 'steamlab-backup-v2' || !isObject(payload.db) || !Array.isArray(payload.files)) {
     throw new Error('Backup failed validation before any database change.');
   }
   const db = validateDatabase(payload.db);
@@ -1062,14 +1034,15 @@ export async function importBackup(payload, actor, now = Date.now()) {
     request.file.size = request.file.pointer.size || request.file.size;
   }
   db.session = null;
-  addActivity(db, actor || 'system', 'import', `Imported ${db.requests.length} requests, ${db.accounts.length} accounts, and ${payload.files.length} files.`, now);
+  addActivity(db, admin, 'import', `Imported ${db.requests.length} requests, ${db.accounts.length} accounts, and ${payload.files.length} files.`, now);
   replaceDb(db);
   return { accounts: db.accounts.length, requests: db.requests.length, files: payload.files.length };
 }
 
-export async function resetDemoData(now = Date.now()) {
+export async function resetFactoryData(actor, now = Date.now()) {
+  requireAdmin(actor);
   await clearFiles();
-  const db = resetToSeedDatabase(now);
+  const db = resetToFactoryDatabase(now);
   runScheduler(db, now);
   commitDb();
   await ensureSeedFiles();
@@ -1080,12 +1053,9 @@ export function parseSettingsForm(raw) {
   return validateSettingsInput(raw);
 }
 
+
 export function getUploadExtensionsText() {
   return `${MODEL_EXTENSIONS.map((extension) => `.${extension}`).join(' ')} · ${IMAGE_EXTENSIONS.map((extension) => `.${extension}`).join(' ')}`;
-}
-
-export function getDemoCredentialSet(role) {
-  return DEMO_CREDENTIALS[role] || DEMO_CREDENTIALS.student;
 }
 
 export function serialPrefix(role) {

@@ -1,5 +1,7 @@
-import { makeSalt, hashPassword, makeId, seedFileBytes, stateGet, stateSet } from './core.js';
-import { estimateFromFile } from './estimate.js';
+import {
+  makeSalt, hashPassword, PASSWORD_HASH_ITERATIONS,
+  makeId, stateGet, stateSet
+} from './core.js';
 
 export const DEFAULT_SETTINGS = {
   openTime: '08:00',
@@ -18,18 +20,27 @@ export const VALID_STATUSES = ['pending', 'approved', 'rejected', 'printing', 'p
 export const ACTIVE_STATUSES = ['pending', 'approved', 'printing', 'printed'];
 export const VALID_PRIORITIES = ['urgent', 'high', 'normal', 'low'];
 
-export const DEMO_ACCOUNTS = [
-  { key: 'admin', id: 'acc-admin', role: 'admin', name: 'Lab Administrator', loginId: '12345678910', serial: null, password: '12345', autoApprove: false },
-  { key: 'teacher', id: 'acc-teacher1', role: 'teacher', name: 'Ms Rivera', loginId: 'teacher1', serial: 'T-1041', password: 'teach123', autoApprove: false },
-  { key: 'student', id: 'acc-student1', role: 'student', name: 'Avery Chen', loginId: 'student1', serial: 'STU-2001', password: '12345', autoApprove: false },
-  { key: 'student2', id: 'acc-student2', role: 'student', name: 'Jordan Patel', loginId: 'student2', serial: 'STU-2002', password: '12345', autoApprove: true }
+/* The two permanent administrator credentials are stored only as iterated salted hashes. */
+export const PERMANENT_ADMINS = [
+  {
+    id: 'acc-admin-arhatshah8149',
+    role: 'admin',
+    name: 'Administrator 1',
+    loginId: 'ARHATSHAH8149',
+    salt: '700d7730099c03970b620b022ad82575',
+    passwordHash: '7587034d5f0d1deb6359c1969922ba3ea39f40df376507809490ff9d793a5427',
+    hashIterations: PASSWORD_HASH_ITERATIONS
+  },
+  {
+    id: 'acc-admin-ruthvika20',
+    role: 'admin',
+    name: 'Administrator 2',
+    loginId: 'RUTHVIKA20',
+    salt: 'edb1b5eb720f483b71a2d5893648dbb2',
+    passwordHash: 'a5109b7be61c9de9fb337e0c065afb248a3795b5f5c90cb6d90dc28b7c0d7224',
+    hashIterations: PASSWORD_HASH_ITERATIONS
+  }
 ];
-
-export const DEMO_CREDENTIALS = {
-  admin: { role: 'admin', loginId: '12345678910', serial: '', password: '12345', label: 'username' },
-  teacher: { role: 'teacher', loginId: 'teacher1', serial: 'T-1041', password: 'teach123', label: 'login ID' },
-  student: { role: 'student', loginId: 'student1', serial: 'STU-2001', password: '12345', label: 'login ID' }
-};
 
 let currentDb = null;
 
@@ -44,6 +55,10 @@ function isObject(value) {
 function finiteNumber(value, fallback) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
+}
+
+function normaliseSerial(value) {
+  return String(value || '').trim().toUpperCase();
 }
 
 function normaliseSettings(input) {
@@ -70,134 +85,71 @@ function normaliseSettings(input) {
   };
 }
 
+export function publicAccount(account) {
+  if (!account) return null;
+  const safe = clone(account);
+  delete safe.password;
+  delete safe.salt;
+  delete safe.passwordHash;
+  delete safe.hashIterations;
+  return safe;
+}
+
 export function createAccountRecord(payload, now = Date.now()) {
   const salt = makeSalt();
+  const role = String(payload.role || '');
+  const serial = role === 'admin' ? null : (normaliseSerial(payload.serial) || null);
   return {
     id: payload.id || makeId('acc'),
-    role: payload.role,
+    role,
     name: String(payload.name || '').trim(),
+    className: role === 'student' ? String(payload.className || '').trim() : '',
     loginId: String(payload.loginId || '').trim(),
     salt,
-    passwordHash: hashPassword(payload.password, salt),
-    serial: payload.serial || null,
-    serialBoundAt: null,
+    passwordHash: hashPassword(payload.password, salt, PASSWORD_HASH_ITERATIONS),
+    hashIterations: PASSWORD_HASH_ITERATIONS,
+    serial,
+    serialAssignedAt: serial ? now : null,
     active: payload.active !== false,
-    autoApprove: Boolean(payload.autoApprove),
+    autoApprove: role === 'student' && Boolean(payload.autoApprove),
+    permanent: Boolean(payload.permanent),
     createdAt: now,
     passwordUpdatedAt: now
   };
 }
 
-function seedFile(name, key, infill, copies, settings, now) {
-  const bytes = seedFileBytes(key, name);
-  const estimate = estimateFromFile({ name, bytes, infill, copies, buildVolume: settings.buildVolume, now });
-  const pointer = {
-    backend: 'seed',
-    key,
-    seedKey: key,
-    name,
-    size: bytes.length,
-    mime: 'model/stl'
-  };
-  return {
-    file: { name, size: bytes.length, mime: 'model/stl', pointer },
-    estimate
-  };
-}
-
-function makeSeedRequest(options) {
-  return {
-    id: options.id,
-    code: options.code,
-    studentId: options.studentId,
-    studentName: options.studentName,
-    title: options.title,
-    notes: options.notes,
-    material: options.material,
-    colour: options.colour,
-    infill: options.infill,
-    copies: options.copies,
-    status: options.status,
-    priority: options.priority || 'normal',
-    submittedAt: options.submittedAt,
-    approvedAt: options.approvedAt || null,
-    approvedBy: options.approvedBy || null,
-    adjustedMinutes: options.adjustedMinutes || null,
-    rejectionReason: null,
-    cancelReason: null,
-    slotConfirmedAt: null,
-    slotConfirmedBy: null,
-    file: options.payload.file,
-    estimate: options.payload.estimate,
-    schedule: { segments: [], reason: 'Waiting for the scheduler', scheduledAt: null, fixed: false, releasedAt: null },
-    workflow: { startedAt: null, printedAt: null, handedAt: null, printMinutes: null },
-    createdAt: options.submittedAt
-  };
-}
-
-export function createSeedDatabase(now = Date.now()) {
+export function createFactoryDatabase(now = Date.now()) {
   const settings = clone(DEFAULT_SETTINGS);
-  const accounts = DEMO_ACCOUNTS.map((demo) => createAccountRecord({ ...demo }, now));
-  const serials = [
-    { code: 'STU-2001', role: 'student', status: 'assigned', assignedTo: 'acc-student1', boundAt: null, createdAt: now },
-    { code: 'STU-2002', role: 'student', status: 'assigned', assignedTo: 'acc-student2', boundAt: null, createdAt: now },
-    { code: 'STU-2003', role: 'student', status: 'free', assignedTo: null, boundAt: null, createdAt: now },
-    { code: 'STU-2004', role: 'student', status: 'free', assignedTo: null, boundAt: null, createdAt: now },
-    { code: 'T-1041', role: 'teacher', status: 'assigned', assignedTo: 'acc-teacher1', boundAt: null, createdAt: now },
-    { code: 'T-1042', role: 'teacher', status: 'free', assignedTo: null, boundAt: null, createdAt: now },
-    { code: 'T-1043', role: 'teacher', status: 'free', assignedTo: null, boundAt: null, createdAt: now }
-  ];
-  const approvedPayload = seedFile('demo-cube.stl', 'seed-cube-1', 20, 1, settings, now);
-  const pendingPayload = seedFile('demo-bracket.stl', 'seed-bracket-2', 30, 1, settings, now);
-  const requests = [
-    makeSeedRequest({
-      id: 'req-seed-approved',
-      code: 'SLB-0001',
-      studentId: 'acc-student1',
-      studentName: 'Avery Chen',
-      title: 'Geometry calibration cube',
-      notes: 'Demo job: already approved and scheduled.',
-      material: 'PLA',
-      colour: 'Blue',
-      infill: 20,
-      copies: 1,
-      status: 'approved',
-      priority: 'normal',
-      submittedAt: now - 3 * 86400000,
-      approvedAt: now - 2 * 86400000,
-      approvedBy: 'acc-teacher1',
-      payload: approvedPayload
-    }),
-    makeSeedRequest({
-      id: 'req-seed-pending',
-      code: 'SLB-0002',
-      studentId: 'acc-student2',
-      studentName: 'Jordan Patel',
-      title: 'Desk bracket prototype',
-      notes: 'Demo job: waiting for teacher review.',
-      material: 'PETG',
-      colour: 'Orange',
-      infill: 30,
-      copies: 1,
-      status: 'pending',
-      priority: 'high',
-      submittedAt: now - 86400000,
-      payload: pendingPayload
-    })
-  ];
+  const accounts = PERMANENT_ADMINS.map((admin) => ({
+    ...admin,
+    className: '',
+    serial: null,
+    serialAssignedAt: null,
+    active: true,
+    autoApprove: false,
+    permanent: true,
+    createdAt: now,
+    passwordUpdatedAt: now
+  }));
   return {
-    schema: 'steamlab-db-v1',
-    version: 1,
+    schema: 'steamlab-db-v2',
+    version: 2,
     createdAt: now,
     updatedAt: now,
     settings,
     accounts,
-    serials,
+    serials: [],
     serialBindings: {},
-    requests,
+    requests: [],
     session: null,
-    activity: [{ id: makeId('act'), at: now, actor: 'system', action: 'seed', detail: 'Demo accounts, serials, and two example requests created.' }],
-    counters: { request: 3, account: 5, studentSerial: 2004, teacherSerial: 1043 }
+    activity: [{
+      id: makeId('act'),
+      at: now,
+      actor: 'system',
+      action: 'factory',
+      detail: 'Two permanent administrator accounts created. No student or teacher accounts were pre-created.'
+    }],
+    counters: { request: 1, account: 3, studentSerial: 2000, teacherSerial: 1000 }
   };
 }
 
@@ -211,7 +163,8 @@ export function validateDatabase(raw) {
     try { candidate = JSON.parse(candidate); } catch (_) { throw new Error('Backup is not valid JSON.'); }
   }
   assert(isObject(candidate), 'Database must be a JSON object.');
-  assert(Number(candidate.version) === 1, 'Database version must be 1.');
+  assert(candidate.schema === 'steamlab-db-v2', 'Database schema must be steamlab-db-v2.');
+  assert(Number(candidate.version) === 2, 'Database version must be 2.');
   assert(Array.isArray(candidate.accounts), 'Database accounts must be an array.');
   assert(Array.isArray(candidate.serials), 'Database serials must be an array.');
   assert(Array.isArray(candidate.requests), 'Database requests must be an array.');
@@ -221,6 +174,7 @@ export function validateDatabase(raw) {
 
   const accountIds = new Set();
   const loginIds = new Set();
+  const studentSerials = new Set();
   for (const [index, account] of candidate.accounts.entries()) {
     assert(isObject(account), `Account ${index + 1} must be an object.`);
     assert(typeof account.id === 'string' && account.id, `Account ${index + 1} is missing an id.`);
@@ -228,10 +182,31 @@ export function validateDatabase(raw) {
     assert(typeof account.loginId === 'string' && account.loginId, `Account ${index + 1} is missing a login ID.`);
     assert(typeof account.salt === 'string' && account.salt, `Account ${index + 1} is missing a password salt.`);
     assert(/^[a-f0-9]{64}$/i.test(String(account.passwordHash || '')), `Account ${index + 1} has an invalid password hash.`);
+    const iterations = Number(account.hashIterations);
+    assert(Number.isInteger(iterations) && iterations >= 1000 && iterations <= 100000, `Account ${index + 1} is missing a valid password hash iteration count.`);
+    assert(!Object.prototype.hasOwnProperty.call(account, 'password'), `Account ${index + 1} exposes a plaintext password.`);
     assert(!accountIds.has(account.id), `Duplicate account id: ${account.id}.`);
     assert(!loginIds.has(String(account.loginId).toLowerCase()), `Duplicate login ID: ${account.loginId}.`);
     accountIds.add(account.id);
     loginIds.add(String(account.loginId).toLowerCase());
+    if (account.role === 'student' && account.serial) {
+      const serial = normaliseSerial(account.serial);
+      assert(/^STU-\d{4}$/.test(serial), `Account ${index + 1} has an invalid student serial: ${account.serial}.`);
+      assert(!studentSerials.has(serial), `Duplicate student serial: ${serial}.`);
+      studentSerials.add(serial);
+    }
+  }
+
+  for (const admin of PERMANENT_ADMINS) {
+    const present = candidate.accounts.some((account) => account.id === admin.id
+      && account.role === 'admin'
+      && account.loginId === admin.loginId
+      && account.active !== false
+      && account.permanent === true
+      && account.salt === admin.salt
+      && account.passwordHash === admin.passwordHash
+      && Number(account.hashIterations) === admin.hashIterations);
+    assert(present, `Permanent administrator account ${admin.loginId} is missing or was altered.`);
   }
 
   const serialCodes = new Set();
@@ -272,28 +247,42 @@ export function validateDatabase(raw) {
 
 export function normaliseDatabase(candidate) {
   const db = clone(candidate);
-  db.schema = 'steamlab-db-v1';
-  db.version = 1;
+  db.schema = 'steamlab-db-v2';
+  db.version = 2;
   db.createdAt = finiteNumber(db.createdAt, Date.now());
   db.updatedAt = finiteNumber(db.updatedAt, Date.now());
   db.settings = normaliseSettings(db.settings);
-  db.accounts = (Array.isArray(db.accounts) ? db.accounts : []).map((account) => ({
-    ...account,
-    name: String(account.name || account.loginId || 'User'),
-    serial: account.serial || null,
-    serialBoundAt: account.serialBoundAt || null,
-    active: account.active !== false,
-    autoApprove: Boolean(account.autoApprove),
-    createdAt: finiteNumber(account.createdAt, db.createdAt)
-  }));
-  db.serials = (Array.isArray(db.serials) ? db.serials : []).map((serial) => ({
-    ...serial,
-    status: ['free', 'assigned', 'used'].includes(serial.status) ? serial.status : 'free',
-    assignedTo: serial.assignedTo || null,
-    boundAt: serial.boundAt || null,
-    createdAt: finiteNumber(serial.createdAt, db.createdAt)
-  }));
-  db.serialBindings = isObject(db.serialBindings) ? db.serialBindings : {};
+  db.accounts = (Array.isArray(db.accounts) ? db.accounts : []).map((account) => {
+    const safe = { ...account };
+    delete safe.password;
+    delete safe.serialBoundAt;
+    const assignedAt = Number(safe.serialAssignedAt || 0);
+    return {
+      ...safe,
+      name: String(safe.name || safe.loginId || 'User'),
+      className: String(safe.className || ''),
+      hashIterations: Number.isInteger(Number(safe.hashIterations)) ? Number(safe.hashIterations) : PASSWORD_HASH_ITERATIONS,
+      serial: normaliseSerial(safe.serial) || null,
+      serialAssignedAt: Number.isFinite(assignedAt) && assignedAt > 0 ? assignedAt : null,
+      active: safe.active !== false,
+      autoApprove: Boolean(safe.autoApprove),
+      permanent: Boolean(safe.permanent),
+      createdAt: finiteNumber(safe.createdAt, db.createdAt)
+    };
+  });
+  db.serials = (Array.isArray(db.serials) ? db.serials : []).map((serial) => {
+    const assignedAt = Number(serial.assignedAt || serial.boundAt || 0);
+    return {
+      ...serial,
+      code: normaliseSerial(serial.code),
+      role: serial.role === 'teacher' ? 'teacher' : 'student',
+      status: serial.status === 'free' ? 'free' : 'assigned',
+      assignedTo: serial.assignedTo || null,
+      assignedAt: Number.isFinite(assignedAt) && assignedAt > 0 ? assignedAt : null,
+      createdAt: finiteNumber(serial.createdAt, db.createdAt)
+    };
+  });
+  db.serialBindings = {};
   db.requests = (Array.isArray(db.requests) ? db.requests : []).map((request) => ({
     ...request,
     studentName: String(request.studentName || 'Unknown student'),
@@ -314,7 +303,13 @@ export function normaliseDatabase(candidate) {
   db.requests.forEach((request) => {
     if (!Array.isArray(request.schedule.segments)) request.schedule.segments = [];
   });
-  db.session = isObject(db.session) && db.accounts.some((account) => account.id === db.session.accountId && account.active) ? db.session : null;
+  const sessionAccount = isObject(db.session) ? db.accounts.find((account) => account.id === db.session.accountId && account.active) : null;
+  db.session = sessionAccount ? {
+    accountId: sessionAccount.id,
+    role: sessionAccount.role,
+    name: sessionAccount.name,
+    loginAt: finiteNumber(db.session.loginAt, db.createdAt)
+  } : null;
   db.activity = Array.isArray(db.activity) ? db.activity.slice(-100) : [];
   db.counters = {
     request: Math.max(1, finiteNumber(db.counters && db.counters.request, 1)),
@@ -346,9 +341,9 @@ export function loadOrSeedDatabase(now = Date.now()) {
       return currentDb;
     }
   } catch (_) {
-    // A corrupt local record is replaced by valid demo data rather than a blank screen.
+    // A corrupt or outdated local record is replaced by factory data rather than a blank screen.
   }
-  currentDb = createSeedDatabase(now);
+  currentDb = createFactoryDatabase(now);
   saveDatabaseTo(currentDb);
   return currentDb;
 }
@@ -370,8 +365,8 @@ export function replaceDb(db) {
   return currentDb;
 }
 
-export function resetToSeedDatabase(now = Date.now()) {
-  return replaceDb(createSeedDatabase(now));
+export function resetToFactoryDatabase(now = Date.now()) {
+  return replaceDb(createFactoryDatabase(now));
 }
 
 export function isDatabaseLoaded() {
@@ -392,7 +387,7 @@ export function findRequestById(db, id) {
 }
 
 export function findSerial(db, code) {
-  const normalised = String(code || '').trim().toUpperCase();
+  const normalised = normaliseSerial(code);
   return db.serials.find((serial) => serial.code === normalised) || null;
 }
 

@@ -4,17 +4,17 @@ import {
   formatLongWeekday, makeId, readFileBytes
 } from './core.js';
 import {
-  getDb, commitDb, DEMO_CREDENTIALS, DEFAULT_SETTINGS,
+  getDb, commitDb, DEFAULT_SETTINGS,
   findAccountById, findRequestById, findSerial
 } from './db.js';
 import {
-  bootstrap, ensureSeedFiles, getSessionAccount, restoreDemoCredentials, login, logout,
+  bootstrap, ensureSeedFiles, getSessionAccount, login, logout,
   submitRequest, previewEstimate, getRequestFile, reestimateFromFile, approveRequest,
   rejectRequest, confirmSlot, startPrint, markPrinted, handOver, cancelRequest,
   rerunScheduler, createAccount, updateAccount, deleteAccount, generateSerials,
   assignSerial, updateSettings, resetSettings, computeReports, buildScheduleBoard,
   exportRequestsCsv, exportSerialsCsv, exportReportCsv, exportBackup, parseBackupText,
-  importBackup, resetDemoData, STATUS_LABELS, PRIORITY_LABELS, MATERIALS,
+  importBackup, resetFactoryData, STATUS_LABELS, PRIORITY_LABELS, MATERIALS,
   scheduleText, statusText, effectiveMinutes, getUploadExtensionsText, fileSizeLabel,
   decodeBackupBytes
 } from './api.js';
@@ -71,7 +71,7 @@ function icon(name, size = 20) {
 }
 
 function blankLogin() {
-  return { loginId: '', password: '', serial: '' };
+  return { loginId: '', password: '' };
 }
 
 function makeDraft() {
@@ -85,7 +85,7 @@ function makeDraft() {
 }
 
 function makeAccountForm() {
-  return { name: '', role: 'student', loginId: '', password: '', serial: '', active: true, autoApprove: false };
+  return { name: '', role: 'student', className: '', loginId: '', password: '', serial: '', active: true, autoApprove: false };
 }
 
 function makeSettingsForm(settings) {
@@ -132,7 +132,7 @@ let bootstrapped = false;
 
 const VIEW_META = {
   landing: { title: 'STEAM Lab Booking System', subtitle: 'One printer, one queue, one clear schedule.' },
-  login: { title: 'Sign in', subtitle: 'Choose your role and use the credentials issued by the lab.' },
+  login: { title: 'Sign in', subtitle: 'Choose your role and sign in with your issued username and password.' },
   'student-requests': { title: 'My requests', subtitle: 'Only your print requests are shown here.' },
   'student-new': { title: 'New print request', subtitle: 'Upload a model and get a computed print-time estimate.' },
   'student-schedule': { title: 'Two-week schedule', subtitle: 'Other students’ booked time appears only as anonymous occupied blocks.' },
@@ -144,10 +144,10 @@ const VIEW_META = {
   'admin-schedule': { title: 'Schedule board', subtitle: 'Full visibility of booked blocks and cool-down gaps.' },
   'admin-requests': { title: 'All requests', subtitle: 'Search, filter, and run the print workflow.' },
   'admin-new-request': { title: 'Submit on behalf of a student', subtitle: 'Create a real student request using the same upload and estimator.' },
-  'admin-accounts': { title: 'Accounts', subtitle: 'Create, edit, delete, set passwords, and assign serials.' },
-  'admin-serials': { title: 'Serial numbers', subtitle: 'Bulk-generate serials and see free, assigned, and used codes.' },
+  'admin-accounts': { title: 'Accounts', subtitle: 'Create student and teacher accounts, edit usernames and passwords, and assign class and serial details.' },
+  'admin-serials': { title: 'Serial numbers', subtitle: 'Bulk-generate serials and see free versus assigned codes.' },
   'admin-settings': { title: 'Lab settings', subtitle: 'Lab hours, capacity, lead time, upload limits, and build volume.' },
-  'admin-data': { title: 'Data & backup', subtitle: 'Export JSON and CSV, import a validated backup, or reset demo data.' }
+  'admin-data': { title: 'Data & backup', subtitle: 'Export JSON and CSV, import a validated backup, or restore the two permanent administrator accounts.' }
 };
 
 const NAV = {
@@ -178,6 +178,18 @@ function defaultView(role) {
   if (role === 'student') return 'student-requests';
   if (role === 'teacher') return 'teacher-review';
   return 'admin-reports';
+}
+
+function viewAllowed(role, view) {
+  return (NAV[role] || []).some((item) => item.view === view);
+}
+
+function renderAccessDenied() {
+  return `
+    <section class="card" data-testid="access-denied">
+      <div class="card-header"><div><h2>Access restricted</h2><p>Your signed-in role determines which workspaces are available.</p></div></div>
+      ${emptyState('Administrator access required', 'This workspace is not available for your account. Use the sidebar to return to an allowed view.', 'key')}
+    </section>`;
 }
 
 function viewMeta(view) {
@@ -285,7 +297,7 @@ function renderFatalMarkup() {
       <section class="fatal-panel">
         <div class="eyebrow">Boot safety panel</div>
         <h1>The app could not start normally</h1>
-        <p>Your data was not silently cleared. Use Reset app data below to start from clean demo data.</p>
+        <p>Your data was not silently cleared. Use Reset app data below to start from the two permanent administrator accounts.</p>
         <div class="message-box error"><strong>${esc(message)}</strong></div>
         <pre>${esc(stack)}</pre>
         <div class="btn-row">
@@ -339,15 +351,8 @@ function renderLanding() {
 
 function renderLogin() {
   const role = state.loginRole || 'student';
-  const demo = DEMO_CREDENTIALS[role];
   const title = role === 'student' ? 'Student sign in' : role === 'teacher' ? 'Teacher sign in' : 'Admin sign in';
-  const loginLabel = role === 'admin' ? 'Admin username' : 'Login ID';
-  const serialField = role === 'admin' ? '' : `
-    <div class="form-field span-2">
-      <label for="login-serial">Serial number</label>
-      <input id="login-serial" name="serial" type="text" value="${esc(state.loginForm.serial || '')}" placeholder="${role === 'student' ? 'STU-2001' : 'T-1041'}" autocomplete="off">
-      ${fieldError('serial')}
-    </div>`;
+  const loginLabel = role === 'admin' ? 'Admin username' : 'Username';
   return `
     <main class="auth-shell">
       <section class="auth-visual">
@@ -357,9 +362,9 @@ function renderLogin() {
             <span class="brand-text">STEAM Lab Booking System</span>
           </div>
           <h1>${esc(title)}</h1>
-          <p>One school 3D printer, one honest queue. ${role === 'admin' ? 'Administrators use a username and password only.' : 'Your serial binds to this account the first time you sign in.'}</p>
+          <p>One school 3D printer, one honest queue. Sign in with the username and password issued by your administrator.</p>
           <div class="auth-points">
-            <div class="auth-point">${icon('check', 19)}<span>Real local persistence with an in-memory fallback for restricted previews.</span></div>
+            <div class="auth-point">${icon('check', 19)}<span>Accounts are created by an administrator; registered details appear automatically after sign-in.</span></div>
             <div class="auth-point">${icon('check', 19)}<span>File-based estimates, cool-down gaps, daily caps, and printable workflow states.</span></div>
             <div class="auth-point">${icon('check', 19)}<span>No external services, fonts, images, or analytics.</span></div>
           </div>
@@ -371,7 +376,7 @@ function renderLogin() {
           ${storageNoticeHtml()}
           <button class="btn ghost" type="button" data-action="back-to-roles">${icon('back', 17)} Choose another role</button>
           <h2>${esc(title)}</h2>
-          <p class="muted">Enter the ${esc(demo.label)} and password issued by the lab.</p>
+          <p class="muted">Enter the username and password issued by the lab.</p>
           <form data-form="login" data-testid="login-form" data-role="${esc(role)}" novalidate>
             <div class="form-grid">
               <div class="form-field span-2">
@@ -384,15 +389,13 @@ function renderLogin() {
                 <input id="login-password" name="password" type="password" value="${esc(state.loginForm.password || '')}" autocomplete="current-password">
                 ${fieldError('password')}
               </div>
-              ${serialField}
               <div class="form-field span-2">${fieldError('general')}</div>
             </div>
             <div class="btn-row">
-              <button class="btn primary" type="button" data-action="submit-form" data-form-kind="login">Sign in ${icon('arrow', 17)}</button>
-              <button class="btn" type="button" data-action="fill-demo" data-role="${esc(role)}" data-testid="fill-demo">Fill demo credentials</button>
+              <button class="btn primary" type="button" data-action="submit-form" data-form-kind="login" data-testid="login-submit">Sign in ${icon('arrow', 17)}</button>
             </div>
           </form>
-          <div class="demo-fill-note">Demo fill restores this role’s seeded credentials, then fills every field.</div>
+          <div class="auth-note">Student and teacher accounts are created by an administrator. No name, class, or serial number is needed to sign in.</div>
         </div>
       </section>
     </main>`;
@@ -446,11 +449,32 @@ function renderConfirmBar() {
     </div>`;
 }
 
+function renderAccountIdentity(account) {
+  const roleLabel = account.role === 'student' ? 'Student' : account.role === 'teacher' ? 'Teacher' : 'Administrator';
+  const fourth = account.role === 'student'
+    ? metric('Student serial', account.serial || 'Not assigned', 'Read-only registered serial')
+    : account.role === 'teacher'
+      ? metric('Issued serial', account.serial || 'Not required', 'Optional lab record')
+      : metric('Account scope', 'All registered users', 'Full administrator access');
+  return `
+    <section class="card" data-testid="account-identity">
+      <div class="card-header">
+        <div><h2>Registered account</h2><p>These details come directly from the account created by an administrator and are read-only here.</p></div>
+        <span class="badge neutral">${esc(roleLabel)}</span>
+      </div>
+      <div class="grid-4">
+        ${metric('Full name', account.name, 'Registered identity')}
+        ${metric('Username', account.loginId, 'Used to sign in')}
+        ${account.role === 'student' ? metric('Class', account.className || 'Not recorded', 'Assigned by administrator') : metric('Role', roleLabel, 'Account permission')}
+        ${fourth}
+      </div>
+    </section>`;
+}
+
 function renderAppShell() {
   const account = state.session;
   if (!account) return renderLanding();
-  const allowed = (NAV[account.role] || []).map((item) => item.view);
-  if (!allowed.includes(state.view)) state.view = defaultView(account.role);
+  if (!viewAllowed(account.role, state.view)) state.view = defaultView(account.role);
   return `
     <div class="app-shell">
       ${renderSidebar(account)}
@@ -459,6 +483,7 @@ function renderAppShell() {
           ${storageNoticeHtml()}
           ${renderTopbar(account)}
           ${renderConfirmBar()}
+          ${renderAccountIdentity(account)}
           ${renderView()}
         </div>
       </main>
@@ -466,6 +491,7 @@ function renderAppShell() {
 }
 
 function renderView() {
+  if (!state.session || !viewAllowed(state.session.role, state.view)) return renderAccessDenied();
   switch (state.view) {
     case 'student-requests': return renderStudentRequests();
     case 'student-new': return renderStudentNew();
@@ -890,61 +916,62 @@ function renderAdminAccounts() {
   const db = getDb();
   const form = state.accountForm;
   const editing = Boolean(state.editAccountId);
-  const serialOptions = db.serials.filter((serial) => serial.role === form.role && (serial.status === 'free' || serial.code === form.serial));
-  const serialField = form.role === 'admin' ? '' : `
-    <div class="form-field">
-      <label for="account-serial">Issued serial</label>
-      <select id="account-serial" name="serial" data-account-field>
-        <option value="">Choose a free serial</option>
-        ${serialOptions.map((serial) => `<option value="${esc(serial.code)}"${selected(form.serial, serial.code)}>${esc(serial.code)} · ${esc(serial.status)}</option>`).join('')}
-      </select>
-      ${fieldError('serial')}
-    </div>`;
+  const role = form.role;
+  const nameLabel = role === 'student' ? 'Student’s full name' : role === 'teacher' ? 'Teacher’s full name' : 'Administrator display name';
+  const classField = role === 'student' ? `
+    <div class="form-field"><label for="account-className">Class</label><input id="account-className" name="className" data-account-field type="text" value="${esc(form.className)}" placeholder="Class or form">${fieldError('className')}</div>` : '';
+  const serialField = role === 'student' ? `
+    <div class="form-field"><label for="account-serial">Student serial number</label><input id="account-serial" name="serial" data-account-field type="text" value="${esc(form.serial)}" placeholder="Unique STU-#### serial">${fieldError('serial')}</div>` : '';
   return `
     <section class="grid-4" style="margin-bottom:20px">
-      ${metric('Accounts', db.accounts.length, 'All roles')}
-      ${metric('Students', db.accounts.filter((account) => account.role === 'student').length, 'Can submit requests')}
+      ${metric('Accounts', db.accounts.length, 'All registered users')}
+      ${metric('Students', db.accounts.filter((account) => account.role === 'student').length, 'Created by an administrator')}
       ${metric('Teachers', db.accounts.filter((account) => account.role === 'teacher').length, 'Review and workflow')}
       ${metric('Admins', db.accounts.filter((account) => account.role === 'admin').length, 'Full access')}
     </section>
     <section class="card">
-      <div class="card-header"><div><h2>${editing ? 'Edit account' : 'Create account'}</h2><p>Passwords are stored as salted SHA-256 hashes. Used serials cannot be reassigned.</p></div></div>
+      <div class="card-header"><div><h2>${editing ? 'Edit account' : 'Create account'}</h2><p>Passwords are stored as salted hashes and are never displayed. Usernames and student serial numbers must be unique.</p></div></div>
       <form data-form="accounts" data-testid="account-form" novalidate>
         <div class="form-grid">
-          <div class="form-field"><label for="account-name">Display name</label><input id="account-name" name="name" data-account-field type="text" value="${esc(form.name)}">${fieldError('name')}</div>
-          <div class="form-field"><label for="account-role">Role</label><select id="account-role" name="role" data-account-field>${['student', 'teacher', 'admin'].map((role) => `<option value="${esc(role)}"${selected(form.role, role)}>${esc(role)}</option>`).join('')}</select>${fieldError('role')}</div>
-          <div class="form-field"><label for="account-loginId">Login ID / username</label><input id="account-loginId" name="loginId" data-account-field type="text" value="${esc(form.loginId)}">${fieldError('loginId')}</div>
+          <div class="form-field"><label for="account-name">${esc(nameLabel)}</label><input id="account-name" name="name" data-account-field type="text" value="${esc(form.name)}">${fieldError('name')}</div>
+          <div class="form-field"><label for="account-role">Role</label><select id="account-role" name="role" data-account-field>${['student', 'teacher', 'admin'].map((option) => `<option value="${esc(option)}"${selected(role, option)}>${esc(option)}</option>`).join('')}</select>${fieldError('role')}</div>
+          ${classField}
+          <div class="form-field"><label for="account-loginId">Username</label><input id="account-loginId" name="loginId" data-account-field type="text" value="${esc(form.loginId)}">${fieldError('loginId')}</div>
           <div class="form-field"><label for="account-password">${editing ? 'New password (blank keeps current)' : 'Password'}</label><input id="account-password" name="password" data-account-field type="password" value="${esc(form.password)}" autocomplete="new-password">${fieldError('password')}</div>
           ${serialField}
           <div class="form-field">
             <label>Account options</label>
             <div class="checkbox-row" style="padding-top:10px">
               <label><input type="checkbox" name="active" data-account-field${checked(form.active)}> Active</label>
-              <label><input type="checkbox" name="autoApprove" data-account-field${checked(form.autoApprove)}> Auto-approve student jobs</label>
+              <label><input type="checkbox" name="autoApprove" data-account-field${checked(form.autoApprove)}${role === 'student' ? '' : ' disabled'}> Auto-approve student jobs</label>
             </div>
           </div>
           <div class="form-field span-2">${fieldError('general')}</div>
         </div>
         <div class="btn-row" style="margin-top:18px">
-          <button class="btn primary" type="button" data-action="submit-form" data-form-kind="accounts">${icon('save', 17)} ${editing ? 'Save changes' : 'Create account'}</button>
+          <button class="btn primary" type="button" data-action="submit-form" data-form-kind="accounts" data-testid="save-account">${icon('save', 17)} ${editing ? 'Save changes' : 'Create account'}</button>
           ${editing ? `<button class="btn" type="button" data-action="cancel-edit">Cancel edit</button>` : ''}
           <button class="btn" type="button" data-action="nav" data-view="admin-serials">${icon('key', 17)} Generate serials</button>
         </div>
       </form>
     </section>
     <section class="card">
-      <div class="card-header"><div><h2>Account list</h2><p>Existing requests are preserved if an account is deleted.</p></div></div>
+      <div class="card-header"><div><h2>Account list</h2><p>All registered users are visible here. Existing requests are preserved if an account is deleted.</p></div></div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Name</th><th>Role</th><th>Login ID</th><th>Serial</th><th>Status</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Full name</th><th>Role</th><th>Username</th><th>Class</th><th>Serial</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody>${db.accounts.map((account) => {
           const serial = account.serial ? findSerial(db, account.serial) : null;
-          return `<tr>
+          const actions = account.permanent
+            ? '<span class="badge approved">Permanent</span><small>Full access · fixed account</small>'
+            : `<div class="table-actions"><button class="btn small" type="button" data-action="edit-account" data-id="${esc(account.id)}">${icon('edit', 15)} Edit</button><button class="btn small danger" type="button" data-action="delete-account" data-id="${esc(account.id)}">${icon('trash', 15)} Delete</button></div>`;
+          return `<tr data-login-id="${esc(account.loginId)}" data-testid="account-row">
             <td><strong>${esc(account.name)}</strong><small>Created ${esc(formatDate(account.createdAt))}</small></td>
             <td>${esc(account.role)}</td>
             <td>${esc(account.loginId)}</td>
-            <td>${account.serial ? `<strong>${esc(account.serial)}</strong><small>${serial ? esc(serial.status) : 'untracked'}${account.serialBoundAt ? ` · bound ${esc(formatDate(account.serialBoundAt))}` : ''}</small>` : '<small>Not required for admin</small>'}</td>
+            <td>${account.role === 'student' ? esc(account.className || '—') : '<small>Not required</small>'}</td>
+            <td>${account.serial ? `<strong>${esc(account.serial)}</strong><small>${serial ? esc(serial.status) : 'untracked'}${account.serialAssignedAt ? ` · assigned ${esc(formatDate(account.serialAssignedAt))}` : ''}</small>` : `<small>${account.role === 'student' ? 'Required' : 'Not required'}</small>`}</td>
             <td><span class="badge ${account.active ? 'handed' : 'cancelled'}">${account.active ? 'Active' : 'Inactive'}</span>${account.autoApprove ? ' <span class="badge approved">Auto-approve</span>' : ''}</td>
-            <td><div class="table-actions"><button class="btn small" type="button" data-action="edit-account" data-id="${esc(account.id)}">${icon('edit', 15)} Edit</button><button class="btn small danger" type="button" data-action="delete-account" data-id="${esc(account.id)}">${icon('trash', 15)} Delete</button></div></td>
+            <td>${actions}</td>
           </tr>`;
         }).join('')}</tbody>
       </table></div>
@@ -955,17 +982,16 @@ function renderAdminSerials() {
   const db = getDb();
   const free = db.serials.filter((serial) => serial.status === 'free');
   const assigned = db.serials.filter((serial) => serial.status === 'assigned');
-  const used = db.serials.filter((serial) => serial.status === 'used');
   const eligibleAccounts = (role) => db.accounts.filter((account) => account.role === role && account.active);
   return `
     <section class="grid-3" style="margin-bottom:20px">
       ${metric('Free', free.length, 'Ready to assign')}
-      ${metric('Assigned', assigned.length, 'Awaiting first sign-in')}
-      ${metric('Used', used.length, 'Bound and single-use')}
+      ${metric('Assigned', assigned.length, 'Linked to one account')}
+      ${metric('All codes', db.serials.length, 'Generated or entered')}
     </section>
     <div class="grid-2">
       <section class="card">
-        <div class="card-header"><div><h2>Bulk-generate serials</h2><p>Student codes use STU-####, teacher codes use T-####.</p></div></div>
+        <div class="card-header"><div><h2>Bulk-generate serials</h2><p>Student codes use STU-####, teacher codes use T-####. Student serials can also be entered directly on the account form.</p></div></div>
         <form data-form="generate-serials" novalidate>
           <div class="form-grid">
             <div class="form-field"><label for="serial-role">Role</label><select id="serial-role" name="role"><option value="student">Student</option><option value="teacher">Teacher</option></select>${fieldError('role')}</div>
@@ -976,23 +1002,23 @@ function renderAdminSerials() {
       </section>
       <section class="card">
         <div class="card-header"><div><h2>Free codes</h2><p>Newly generated serials appear here immediately.</p></div></div>
-        ${free.length ? `<div class="serial-grid">${free.map((serial) => `<div class="serial-chip free">${esc(serial.code)} · ${esc(serial.role)}</div>`).join('')}</div>` : emptyState('No free serials', 'Generate a batch to issue new codes.', 'key')}
+        ${free.length ? `<div class="serial-grid">${free.map((serial) => `<div class="serial-chip free">${esc(serial.code)} · ${esc(serial.role)}</div>`).join('')}</div>` : emptyState('No free serials', 'Generate a batch or enter a unique student serial when creating an account.', 'key')}
       </section>
     </div>
     <section class="card">
-      <div class="card-header"><div><h2>Serial pool</h2><p>Free, assigned, and used codes with account assignment controls.</p></div></div>
+      <div class="card-header"><div><h2>Serial pool</h2><p>Each code is linked to at most one account. Assignment controls remain available for free codes.</p></div></div>
       ${state.errors.serialAssign ? `<div class="message-box error">${esc(state.errors.serialAssign)}</div>` : ''}
       <div class="table-wrap"><table>
-        <thead><tr><th>Serial</th><th>Role</th><th>Status</th><th>Assigned to</th><th>Bound at</th><th>Assign</th></tr></thead>
+        <thead><tr><th>Serial</th><th>Role</th><th>Status</th><th>Assigned to</th><th>Assigned at</th><th>Assign</th></tr></thead>
         <tbody>${db.serials.slice().sort((a, b) => a.code.localeCompare(b.code)).map((serial) => {
           const account = serial.assignedTo ? findAccountById(db, serial.assignedTo) : null;
           const accounts = eligibleAccounts(serial.role);
           return `<tr>
             <td><strong>${esc(serial.code)}</strong></td><td>${esc(serial.role)}</td>
-            <td><span class="badge ${serial.status === 'free' ? 'handed' : serial.status === 'assigned' ? 'approved' : 'cancelled'}">${esc(serial.status)}</span></td>
+            <td><span class="badge ${serial.status === 'free' ? 'handed' : 'approved'}">${esc(serial.status)}</span></td>
             <td>${account ? `${esc(account.name)}<small>${esc(account.loginId)}</small>` : '<small>Unassigned</small>'}</td>
-            <td>${serial.boundAt ? esc(formatDateTime(serial.boundAt)) : '<small>Not bound yet</small>'}</td>
-            <td>${serial.status === 'free' ? `<div class="table-actions"><select data-serial-select="${esc(serial.code)}" aria-label="Account for ${esc(serial.code)}"><option value="">Choose account</option>${accounts.map((item) => `<option value="${esc(item.id)}">${esc(item.name)} · ${esc(item.loginId)}</option>`).join('')}</select><button class="btn small" type="button" data-action="assign-serial" data-code="${esc(serial.code)}">Assign</button></div>` : '<small>Single-use · locked</small>'}</td>
+            <td>${serial.assignedAt ? esc(formatDateTime(serial.assignedAt)) : '<small>Not assigned yet</small>'}</td>
+            <td>${serial.status === 'free' ? `<div class="table-actions"><select data-serial-select="${esc(serial.code)}" aria-label="Account for ${esc(serial.code)}"><option value="">Choose account</option>${accounts.map((item) => `<option value="${esc(item.id)}">${esc(item.name)} · ${esc(item.loginId)}</option>`).join('')}</select><button class="btn small" type="button" data-action="assign-serial" data-code="${esc(serial.code)}">Assign</button></div>` : '<small>Assigned · linked to this account</small>'}</td>
           </tr>`;
         }).join('')}</tbody>
       </table></div>
@@ -1076,7 +1102,7 @@ function renderAdminData() {
         </div>
         <div class="form-section">
           <h3>Import a validated backup</h3>
-          <p>Only a steamlab-backup-v1 file with a valid database and file list is accepted.</p>
+          <p>Only a steamlab-backup-v2 file with a valid database and file list is accepted.</p>
           <div class="form-field"><label for="backup-file">Backup JSON file</label><input id="backup-file" data-field="backup-file" data-testid="backup-file" type="file" accept=".json,application/json"></div>
           ${state.backupFileName ? `<div class="file-pill" style="margin-top:10px">${icon('file', 17)} ${esc(state.backupFileName)}</div>` : ''}
           <div class="btn-row" style="margin-top:14px"><button class="btn" type="button" data-action="import-backup">${icon('upload', 17)} Validate & import</button></div>
@@ -1085,9 +1111,9 @@ function renderAdminData() {
         </div>
       </section>
       <section class="card">
-        <div class="card-header"><div><h2>Reset</h2><p>Restore the seeded accounts, serials, settings, and two example requests.</p></div></div>
+        <div class="card-header"><div><h2>Reset</h2><p>Restore the two permanent administrator accounts and clear all student accounts, teacher accounts, serials, settings, requests, and uploaded files.</p></div></div>
         <div class="message-box warning">${icon('alert', 17)} This clears current app data and uploaded files from the browser store. It asks for an in-app confirmation first.</div>
-        <div class="btn-row" style="margin-top:16px"><button class="btn danger" type="button" data-action="reset-demo">${icon('trash', 17)} Reset to demo data</button></div>
+        <div class="btn-row" style="margin-top:16px"><button class="btn danger" type="button" data-action="reset-factory">${icon('trash', 17)} Reset to factory accounts</button></div>
       </section>
     </div>`;
 }
@@ -1111,7 +1137,7 @@ function renderSelfTestPage() {
         ${storageNoticeHtml()}
         <div class="brand-line" style="justify-content:flex-start"><span class="brand-mark">${icon('logo', 24)}</span><span class="brand-text">In-page self-test</span></div>
         <h1>Live scheduler & persistence check</h1>
-        <p>This route seeds an isolated temporary store. It does not read or write the real app database.</p>
+        <p>This route builds an isolated temporary store. It does not read or write the real app database.</p>
         <div class="selftest-result ${result.ok ? 'pass' : 'fail'}" data-testid="selftest-result">
           ${icon(result.ok ? 'check' : 'alert', 30)}
           <span>${result.ok ? 'PASS' : 'FAIL'}${result.ok ? ` — ${result.passed} assertions passed` : ` — ${esc(result.firstFailure || 'assertion failed')}`}</span>
@@ -1136,6 +1162,7 @@ function readAccountForm(form) {
   state.accountForm = {
     name: String(data.get('name') || ''),
     role: String(data.get('role') || 'student'),
+    className: String(data.get('className') || ''),
     loginId: String(data.get('loginId') || ''),
     password: String(data.get('password') || ''),
     serial: String(data.get('serial') || ''),
@@ -1255,7 +1282,7 @@ async function handleAction(action, button, event) {
         state.loginForm = blankLogin();
         clearActionErrors();
         render();
-        toast(`${state.loginRole} sign-in opened`, 'info', 'Use Fill demo credentials if you want the seeded account.');
+        toast(`${state.loginRole} sign-in opened`, 'info', 'Enter the username and password issued by your administrator.');
         break;
       }
       case 'back-to-roles': {
@@ -1266,17 +1293,14 @@ async function handleAction(action, button, event) {
         toast('Role chooser opened', 'info');
         break;
       }
-      case 'fill-demo': {
-        const role = button.dataset.role;
-        const demo = restoreDemoCredentials(role);
-        state.loginForm = { loginId: demo.loginId, password: demo.password, serial: demo.serial || '' };
-        clearActionErrors();
-        render();
-        toast('Demo credentials filled', 'success', `Sign in as ${demo.loginId}.`);
-        break;
-      }
       case 'nav': {
-        state.view = button.dataset.view;
+        const nextView = button.dataset.view;
+        if (!state.session || !viewAllowed(state.session.role, nextView)) {
+          render();
+          toast('Access denied', 'error', 'Your role cannot open that workspace.');
+          break;
+        }
+        state.view = nextView;
         state.confirm = null;
         clearActionErrors();
         render();
@@ -1284,17 +1308,19 @@ async function handleAction(action, button, event) {
         break;
       }
       case 'logout': {
+        const role = state.session ? state.session.role : 'student';
         logout(state.session);
         state.session = null;
-        state.view = 'landing';
-        state.loginRole = null;
+        state.view = 'login';
+        state.loginRole = role;
+        state.loginForm = blankLogin();
         clearActionErrors();
         render();
-        toast('Signed out', 'success');
+        toast('Signed out', 'success', 'Sign-in page opened.');
         break;
       }
       case 'download': {
-        const file = await getRequestFile(button.dataset.id);
+        const file = await getRequestFile(button.dataset.id, state.session);
         if (!file) throw new Error('That uploaded file is no longer available in this browser.');
         downloadBlob(file.bytes, file.name, file.mime);
         toast('Download started', 'success', file.name);
@@ -1410,7 +1436,7 @@ async function handleAction(action, button, event) {
         break;
       }
       case 'rerun-scheduler': {
-        rerunScheduler();
+        rerunScheduler(state.session);
         render();
         toast('Scheduler re-run', 'success', 'Cool-down gaps, caps, and priorities were recalculated.');
         break;
@@ -1424,10 +1450,15 @@ async function handleAction(action, button, event) {
       case 'edit-account': {
         const account = findAccountById(db, button.dataset.id);
         if (!account) throw new Error('That account no longer exists.');
+        if (account.permanent) {
+          toast('Permanent administrator', 'info', 'This fixed account already has full administrator access.');
+          break;
+        }
         state.editAccountId = account.id;
         state.accountForm = {
           name: account.name,
           role: account.role,
+          className: account.className || '',
           loginId: account.loginId,
           password: '',
           serial: account.serial || '',
@@ -1449,6 +1480,10 @@ async function handleAction(action, button, event) {
       }
       case 'delete-account': {
         const account = findAccountById(db, button.dataset.id);
+        if (account && account.permanent) {
+          toast('Permanent administrator', 'info', 'This fixed account cannot be deleted.');
+          break;
+        }
         state.confirm = { type: 'delete-account', id: button.dataset.id, title: 'Delete this account?', label: account ? `${account.name} (${account.loginId}) will be removed. Existing requests stay in reports.` : 'This account will be removed.' };
         render();
         toast('Confirm account deletion', 'info', 'Use the confirmation bar above.');
@@ -1488,7 +1523,7 @@ async function handleAction(action, button, event) {
         break;
       }
       case 'export-backup': {
-        const backup = await exportBackup();
+        const backup = await exportBackup(state.session);
         downloadText('steamlab-backup.json', JSON.stringify(backup, null, 2), 'application/json;charset=utf-8');
         toast('JSON backup exported', 'success', `${backup.files.length} uploaded files included`);
         break;
@@ -1512,7 +1547,9 @@ async function handleAction(action, button, event) {
           state.backupFile = null;
           state.backupFileName = '';
           state.session = null;
-          state.view = 'landing';
+          state.view = 'login';
+          state.loginRole = 'admin';
+          state.loginForm = blankLogin();
           state.settingsForm = makeSettingsForm(getDb().settings);
           state.success.backup = `Imported ${result.requests} requests, ${result.accounts} accounts, and ${result.files} files. Sign in again.`;
           clearActionErrors();
@@ -1526,10 +1563,10 @@ async function handleAction(action, button, event) {
         }
         break;
       }
-      case 'reset-demo': {
-        state.confirm = { type: 'reset', title: 'Reset all app data?', label: 'Accounts, serials, settings, requests, and uploaded files will be replaced with demo data.' };
+      case 'reset-factory': {
+        state.confirm = { type: 'reset', title: 'Reset all app data?', label: 'All student and teacher accounts, serials, settings, requests, and uploaded files will be cleared. Only the two permanent administrator accounts will remain.' };
         render();
-        toast('Confirm demo reset', 'info', 'Use the confirmation bar above.');
+        toast('Confirm factory reset', 'info', 'Use the confirmation bar above.');
         break;
       }
       case 'rerun-selftest': {
@@ -1551,9 +1588,9 @@ async function handleAction(action, button, event) {
           location.reload();
         } catch (_) {
           const result = document.querySelector('.fatal-reset-result');
-          if (result) result.textContent = 'App data was cleared. Reload this page to start from demo data.';
+          if (result) result.textContent = 'App data was cleared. Reload this page to start from factory accounts.';
         }
-        toast('App data reset', 'success', 'Reloading with demo data.');
+        toast('App data reset', 'success', 'Reloading with factory accounts.');
         break;
       }
       default:
@@ -1607,10 +1644,11 @@ async function handleConfirmYes() {
       toast('Account deleted', 'success', 'Existing requests were preserved.');
     }
   } else if (confirmation.type === 'reset') {
-    await resetDemoData();
+    await resetFactoryData(state.session);
     state.session = null;
-    state.view = 'landing';
-    state.loginRole = null;
+    state.view = 'login';
+    state.loginRole = 'admin';
+    state.loginForm = blankLogin();
     state.confirm = null;
     state.draft = makeDraft();
     state.lastSubmission = null;
@@ -1619,7 +1657,7 @@ async function handleConfirmYes() {
     state.settingsForm = makeSettingsForm(getDb().settings);
     clearActionErrors();
     render();
-    toast('Demo data restored', 'success', 'Sign in with the seeded credentials.');
+    toast('Factory accounts restored', 'success', 'Only the two permanent administrator accounts remain.');
   }
 }
 
@@ -1633,8 +1671,7 @@ async function handleSubmit(event) {
       const data = new FormData(form);
       state.loginForm = {
         loginId: String(data.get('loginId') || ''),
-        password: String(data.get('password') || ''),
-        serial: String(data.get('serial') || '')
+        password: String(data.get('password') || '')
       };
       const result = login({ role: form.dataset.role, ...state.loginForm });
       if (!result.ok) {
@@ -1725,8 +1762,7 @@ function handleInput(event) {
     const data = new FormData(loginForm);
     state.loginForm = {
       loginId: String(data.get('loginId') || ''),
-      password: String(data.get('password') || ''),
-      serial: String(data.get('serial') || '')
+      password: String(data.get('password') || '')
     };
   }
   const accountForm = target.closest('form[data-form="accounts"]');
@@ -1771,8 +1807,9 @@ async function handleChange(event) {
     readAccountForm(accountForm);
     if (roleChanged) {
       state.accountForm.serial = '';
+      if (state.accountForm.role !== 'student') state.accountForm.className = '';
       render();
-      toast(`${state.accountForm.role} serial options updated`, 'info');
+      toast(`${state.accountForm.role} account fields updated`, 'info');
     }
     return;
   }

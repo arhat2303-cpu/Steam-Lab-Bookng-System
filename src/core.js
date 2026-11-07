@@ -146,13 +146,32 @@ export function makeSalt() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
 }
 
-export function hashPassword(password, salt) {
-  return sha256Hex(`steamlab.v1|${salt}|${String(password ?? '')}|${salt}`);
+export const PASSWORD_HASH_ITERATIONS = 8000;
+
+function normaliseIterations(value) {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 1000 || number > 100000) return PASSWORD_HASH_ITERATIONS;
+  return number;
 }
 
-export function verifyPassword(password, salt, expectedHash) {
-  if (!salt || !expectedHash) return false;
-  const actual = hashPassword(password, salt);
+/**
+ * Deterministic, dependency-free iterated salted SHA-256. This is app-layer
+ * password verification, not a server-side session or a hardware-backed KMS.
+ */
+export function hashPassword(password, salt, iterations = PASSWORD_HASH_ITERATIONS) {
+  const secret = String(password ?? '');
+  const count = normaliseIterations(iterations);
+  let digest = sha256Hex(`steamlab.v2|${salt}|${secret}|${salt}`);
+  for (let round = 1; round < count; round += 1) {
+    digest = sha256Hex(`steamlab.v2|${salt}|${digest}|${secret}`);
+  }
+  return digest;
+}
+
+export function verifyPassword(password, account) {
+  if (!account || !account.salt || !account.passwordHash) return false;
+  const expectedHash = String(account.passwordHash);
+  const actual = hashPassword(password, account.salt, account.hashIterations);
   if (actual.length !== expectedHash.length) return false;
   let difference = 0;
   for (let i = 0; i < actual.length; i += 1) difference |= actual.charCodeAt(i) ^ expectedHash.charCodeAt(i);
@@ -338,7 +357,7 @@ export async function getFile(pointer) {
   }
   if (pointer.backend === 'seed' || pointer.seedKey) {
     const bytes = seedFileBytes(pointer.seedKey || pointer.key, pointer.name);
-    return { bytes, mime: pointer.mime || 'model/stl', name: pointer.name || 'demo-model.stl', backend: 'seed' };
+    return { bytes, mime: pointer.mime || 'model/stl', name: pointer.name || 'model.stl', backend: 'seed' };
   }
   return null;
 }
@@ -378,7 +397,7 @@ function makeAsciiStl(size, label) {
     [0, 4, 7], [0, 7, 3], [1, 2, 6], [1, 6, 5]
   ];
   const fmt = (n) => Number(n).toFixed(4);
-  const lines = [`solid ${label || 'steamlab_demo'}`];
+  const lines = [`solid ${label || 'steamlab_model'}`];
   for (const face of faces) {
     lines.push('  facet normal 0 0 0');
     lines.push('    outer loop');
@@ -386,11 +405,11 @@ function makeAsciiStl(size, label) {
     lines.push('    endloop');
     lines.push('  endfacet');
   }
-  lines.push(`endsolid ${label || 'steamlab_demo'}`);
+  lines.push(`endsolid ${label || 'steamlab_model'}`);
   return lines.join('\n');
 }
 
-export function seedFileBytes(key, name = 'demo-model.stl') {
+export function seedFileBytes(key, name = 'model.stl') {
   const size = String(key).includes('bracket') ? 18 : 12;
   return encodeUtf8Bytes(makeAsciiStl(size, String(name).replace(/[^a-z0-9_]/gi, '_').replace(/\.stl$/i, '')));
 }

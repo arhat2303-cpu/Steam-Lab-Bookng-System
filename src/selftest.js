@@ -1,8 +1,13 @@
-import { makeMemoryStorage, seedFileBytes, getStorageNotice } from './core.js';
-import { createSeedDatabase, saveDatabaseTo, loadDatabaseFrom, isDatabaseLoaded, findAccountById, findRequestById } from './db.js';
-import { createRequestRecord, approveRequest, cancelRequest } from './api.js';
+import { makeMemoryStorage, makeSalt, seedFileBytes, getStorageNotice } from './core.js';
+import {
+  createFactoryDatabase, createAccountRecord, saveDatabaseTo, loadDatabaseFrom,
+  isDatabaseLoaded, findRequestById
+} from './db.js';
+import { createRequestRecord, approveRequestRecord, cancelRequestRecord } from './api.js';
 import { scheduleRequests, scheduleHasOverlaps } from './scheduler.js';
 import { estimateFromFile } from './estimate.js';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 function require(condition, message) {
   if (!condition) throw new Error(message);
@@ -28,7 +33,7 @@ export function runSelfTest() {
   try {
     const now = new Date(2026, 0, 5, 8, 0, 0, 0).getTime();
     const tempStorage = makeMemoryStorage();
-    const db = createSeedDatabase(now);
+    const db = createFactoryDatabase(now);
     db.settings = {
       ...db.settings,
       openTime: '08:00',
@@ -39,18 +44,32 @@ export function runSelfTest() {
       dailyCapMinutes: 420,
       minLeadMinutes: 0
     };
-    saveDatabaseTo(db, tempStorage);
-    const seeded = loadDatabaseFrom(tempStorage);
+    db.counters.request = 9001;
 
-    check('seeds a temporary store without loading the live database', () => {
-      require(seeded.accounts.length === 4, `expected 4 seeded accounts, found ${seeded.accounts.length}`);
-      require(seeded.requests.length === 2, `expected 2 seeded requests, found ${seeded.requests.length}`);
-      require(isDatabaseLoaded() === realLoadedBefore, 'live database load state changed');
-      return '4 accounts and 2 requests in an isolated Map-backed store';
+    const student = createAccountRecord({
+      role: 'student',
+      name: 'Self-test student',
+      className: 'Temporary class',
+      loginId: 'selftest-student',
+      password: makeSalt(),
+      serial: 'STU-9001'
+    }, now);
+    const teacher = createAccountRecord({
+      role: 'teacher',
+      name: 'Self-test teacher',
+      loginId: 'selftest-teacher',
+      password: makeSalt()
+    }, now);
+    db.accounts.push(student, teacher);
+    db.serials.push({
+      code: 'STU-9001',
+      role: 'student',
+      status: 'assigned',
+      assignedTo: student.id,
+      assignedAt: now,
+      createdAt: now
     });
 
-    const student = findAccountById(db, 'acc-student1');
-    const teacher = findAccountById(db, 'acc-teacher1');
     const bytes = seedFileBytes('selftest-cube', 'selftest.stl');
     const estimate = estimateFromFile({
       name: 'selftest.stl',
@@ -61,19 +80,59 @@ export function runSelfTest() {
       buildVolume: db.settings.buildVolume,
       now
     });
-    const created = createRequestRecord(db, {
-      title: 'Self-test calibration part',
-      notes: 'Temporary self-test job.',
+    const file = {
+      name: 'selftest.stl',
+      size: bytes.length,
+      mime: 'model/stl',
+      pointer: { backend: 'seed', key: 'selftest-cube', seedKey: 'selftest-cube', name: 'selftest.stl', size: bytes.length, mime: 'model/stl' }
+    };
+    db.requests.push({
+      id: 'req-selftest-normal',
+      code: 'SLB-9000',
+      studentId: student.id,
+      studentName: student.name,
+      title: 'Self-test normal job',
+      notes: 'Temporary normal-priority job.',
       material: 'PLA',
       colour: 'Blue',
       infill: 20,
       copies: 1,
-      file: {
-        name: 'selftest.stl',
-        size: bytes.length,
-        mime: 'model/stl',
-        pointer: { backend: 'seed', key: 'selftest-cube', seedKey: 'selftest-cube', name: 'selftest.stl', size: bytes.length, mime: 'model/stl' }
-      },
+      status: 'approved',
+      priority: 'normal',
+      submittedAt: now - 2 * DAY_MS,
+      approvedAt: now - 1000,
+      approvedBy: teacher.id,
+      adjustedMinutes: 60,
+      rejectionReason: null,
+      cancelReason: null,
+      slotConfirmedAt: null,
+      slotConfirmedBy: null,
+      file,
+      estimate,
+      schedule: { segments: [], reason: 'Waiting for the scheduler', scheduledAt: null, fixed: false, releasedAt: null },
+      workflow: { startedAt: null, printedAt: null, handedAt: null, printMinutes: null },
+      createdAt: now - 2 * DAY_MS
+    });
+
+    saveDatabaseTo(db, tempStorage);
+    const seeded = loadDatabaseFrom(tempStorage);
+
+    check('builds a factory store with only two permanent administrators', () => {
+      require(seeded.accounts.filter((account) => account.role === 'admin' && account.permanent).length === 2, 'expected two permanent administrator accounts');
+      require(seeded.accounts.filter((account) => account.role === 'student' || account.role === 'teacher').length === 2, 'expected two temporary non-admin accounts');
+      require(!seeded.accounts.some((account) => Object.prototype.hasOwnProperty.call(account, 'password')), 'a plaintext password was exposed');
+      require(isDatabaseLoaded() === realLoadedBefore, 'live database load state changed');
+      return '2 permanent admins, 2 isolated test accounts, no plaintext passwords';
+    });
+
+    const created = createRequestRecord(db, {
+      title: 'Self-test urgent part',
+      notes: 'Temporary urgent job.',
+      material: 'PLA',
+      colour: 'Blue',
+      infill: 20,
+      copies: 1,
+      file,
       estimate
     }, student, now);
     check('creates a job and computes its estimate from a real STL mesh', () => {
@@ -84,7 +143,7 @@ export function runSelfTest() {
     });
 
     const requestId = created.request ? created.request.id : 'missing-request';
-    const approved = approveRequest(db, requestId, { minutes: 60, priority: 'urgent', commit: false }, teacher, now);
+    const approved = approveRequestRecord(db, requestId, { minutes: 60, priority: 'urgent', commit: false }, teacher, now);
     check('approves the job and auto-runs the scheduler', () => {
       require(approved.ok, Object.values(approved.errors || {}).join('; ') || 'approval failed');
       const request = findRequestById(db, requestId);
@@ -97,7 +156,7 @@ export function runSelfTest() {
     const gapMs = db.settings.restGapMinutes * 60000;
     const sorted = result.reservations.slice().sort((a, b) => a.start - b.start || a.end - b.end);
     const urgentPlacement = result.placements[requestId];
-    const seedPlacement = result.placements['req-seed-approved'];
+    const normalPlacement = result.placements['req-selftest-normal'];
 
     check('scheduled slot is in the future and inside lab hours', () => {
       require(urgentPlacement && urgentPlacement.segments.length, 'urgent placement is missing');
@@ -140,21 +199,21 @@ export function runSelfTest() {
     });
 
     check('urgent priority is scheduled before the older normal job', () => {
-      require(seedPlacement && seedPlacement.segments.length, 'seed normal placement is missing');
-      require(urgentPlacement.segments[0].start < seedPlacement.segments[0].start, 'urgent job did not go first');
-      return `urgent ${new Date(urgentPlacement.segments[0].start).toLocaleString()} before normal ${new Date(seedPlacement.segments[0].start).toLocaleString()}`;
+      require(normalPlacement && normalPlacement.segments.length, 'normal placement is missing');
+      require(urgentPlacement.segments[0].start < normalPlacement.segments[0].start, 'urgent job did not go first');
+      return `urgent ${new Date(urgentPlacement.segments[0].start).toLocaleString()} before normal ${new Date(normalPlacement.segments[0].start).toLocaleString()}`;
     });
 
-    const seedStartBeforeCancel = seedPlacement.segments[0].start;
-    const cancelled = cancelRequest(db, requestId, student, 'Self-test cancellation', now, { commit: false });
+    const normalStartBeforeCancel = normalPlacement.segments[0].start;
+    const cancelled = cancelRequestRecord(db, requestId, student, 'Self-test cancellation', now, { commit: false });
     check('cancelling releases reserved time and re-runs the scheduler', () => {
       require(cancelled.ok, Object.values(cancelled.errors || {}).join('; ') || 'cancellation failed');
       const cancelledRequest = findRequestById(db, requestId);
       require(cancelledRequest.status === 'cancelled', `expected cancelled status, got ${cancelledRequest.status}`);
       require(cancelledRequest.schedule.segments.length === 0, 'cancelled request still owns reserved time');
-      const seedAfter = findRequestById(db, 'req-seed-approved');
-      require(seedAfter.schedule.segments[0].start < seedStartBeforeCancel, 'remaining job did not move into the released time');
-      return `remaining job moved from ${new Date(seedStartBeforeCancel).toLocaleString()} to ${new Date(seedAfter.schedule.segments[0].start).toLocaleString()}`;
+      const normalAfter = findRequestById(db, 'req-selftest-normal');
+      require(normalAfter.schedule.segments[0].start < normalStartBeforeCancel, 'remaining job did not move into the released time');
+      return `remaining job moved from ${new Date(normalStartBeforeCancel).toLocaleString()} to ${new Date(normalAfter.schedule.segments[0].start).toLocaleString()}`;
     });
 
     saveDatabaseTo(db, tempStorage);

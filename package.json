@@ -6,6 +6,6 @@
   "description": "Single-printer school STEAM lab request and approval portal",
   "scripts": {
     "build": "node build.mjs",
-    "test": "node tests/scheduler.test.mjs"
+    "test": "node tests/scheduler.test.mjs && node tests/accounts.test.mjs"
   }
 }
