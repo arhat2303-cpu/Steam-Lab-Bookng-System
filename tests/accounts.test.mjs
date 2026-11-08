@@ -75,7 +75,7 @@ test('factory database starts with exactly two permanent admins and no student o
   assert.equal(db.accounts.length, 2);
   assert.equal(db.accounts.filter((account) => account.role === 'admin' && account.permanent).length, 2);
   assert.equal(db.accounts.find((account) => account.loginId === 'ARHATSHAH8149').name, 'ARHAT SHAH');
-  assert.equal(db.accounts.find((account) => account.loginId === 'RUTHVIKA20').name, 'RUTHVIKA VANKADHARA');
+  assert.equal(db.accounts.find((account) => account.loginId === 'ruthvikabrs123').name, 'RUTHVIKA VANKADHARA');
   assert.equal(db.accounts.filter((account) => account.role === 'student' || account.role === 'teacher').length, 0);
   assert.equal(db.requests.length, 0);
   assert.equal(db.serials.length, 0);
@@ -130,8 +130,27 @@ test('both permanent administrator usernames are present', () => {
   freshAdminSession();
   const db = getDb();
   assert.ok(findAccountByLogin(db, 'ARHATSHAH8149', 'admin'));
-  assert.ok(findAccountByLogin(db, 'RUTHVIKA20', 'admin'));
+  assert.ok(findAccountByLogin(db, 'ruthvikabrs123', 'admin'));
   assert.equal(db.accounts.filter((account) => account.role === 'admin').length, 2);
+});
+
+test('a persisted retired administrator username is migrated without resetting existing data', () => {
+  freshAdminSession();
+  const legacy = JSON.parse(JSON.stringify(getDb()));
+  const admin = legacy.accounts.find((account) => account.id === 'acc-admin-ruthvika20');
+  assert.ok(admin, 'the stable second administrator id is missing');
+  const originalHash = admin.passwordHash;
+  admin.loginId = 'RUTHVIKA20';
+  legacy.settings.dailyCapMinutes = 395;
+  const validated = validateDatabase(legacy);
+  const migrated = validated.accounts.find((account) => account.id === admin.id);
+  assert.equal(migrated.loginId, 'ruthvikabrs123');
+  assert.equal(migrated.name, 'RUTHVIKA VANKADHARA');
+  assert.equal(migrated.passwordHash, originalHash);
+  assert.equal(validated.settings.dailyCapMinutes, 395);
+  assert.ok(findAccountByLogin(validated, 'ruthvikabrs123', 'admin'));
+  assert.equal(findAccountByLogin(validated, 'RUTHVIKA20', 'admin'), null);
+  assert.doesNotThrow(() => validateDatabase(validated));
 });
 
 test('login verifies salted hashes without a serial and returns a credential-free account', () => {

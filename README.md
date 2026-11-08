@@ -9,9 +9,9 @@ The original design, responsive layout, request workflow, STL/G-code estimator, 
 A clean install starts with **exactly two permanent administrator accounts**:
 
 - `ARHATSHAH8149` — display name **ARHAT SHAH**
-- `RUTHVIKA20` — display name **RUTHVIKA VANKADHARA**
+- `ruthvikabrs123` — display name **RUTHVIKA VANKADHARA**
 
-The administrator login usernames and protected password hashes are unchanged; only the requested display names were renamed. Their passwords are **not** stored as plaintext in source, `dist/index.html`, the UI, this README, exports, database responses, or browser-visible account objects. Only per-account salted hashes are embedded. Both accounts have identical full administrator permissions and fixed, protected records.
+The protected password hashes are unchanged; the second administrator's login username is now `ruthvikabrs123`, while the display names remain **ARHAT SHAH** and **RUTHVIKA VANKADHARA**. The previous second-administrator username is retired and no longer signs in. Existing local databases are migrated automatically to the new username on load, preserving settings, accounts, serials, and requests. Their passwords are **not** stored as plaintext in source, `dist/index.html`, the UI, this README, exports, database responses, or browser-visible account objects. Only per-account salted hashes are embedded. Both accounts have identical full administrator permissions and fixed, protected records.
 
 There are **no pre-created student accounts, teacher accounts, serial numbers, or booking requests**. No sample student/teacher accounts or sample login credentials remain, and the website does not display issued credentials anywhere.
 
@@ -97,13 +97,13 @@ Latest results:
 
 - `node --check`: PASS for all source, build, and test JavaScript/ESM files.
 - Scheduler/estimator tests: **12/12 PASS**.
-- Account/authentication tests: **10/10 PASS** — factory start state, requested display names, both admin usernames, salted login, iterated verification, public-account sanitization, forged-actor session rejection, duplicate username/serial rejection, admin-only CRUD, permanent-admin protection, student/teacher CRUD, and self-service password changes.
+- Account/authentication tests: **11/11 PASS** — factory start state, requested display names, both current admin usernames, persisted retired-username migration without data loss, salted login, iterated verification, public-account sanitization, forged-actor session rejection, duplicate username/serial rejection, admin-only CRUD, permanent-admin protection, student/teacher CRUD, and self-service password changes.
 - Serial/XLSX tests: **6/6 PASS** — real two-sheet workbook, exact headers, row parsing with separate full-name/username fields, duplicate/incomplete validation, synchronised bulk creation, hashed sanitized records, edit/delete synchronisation, and persisted display-name normalization.
 - In-page `#selftest`: **12/12 PASS** in a browser and in isolated Node execution.
 - `node build.mjs`: one self-contained `dist/index.html` with 10 inlined modules, no external runtime requests, no external source references, no `fetch`, no WebCrypto dependency, no native dialogs, no TODOs, and no placeholder text. All URL-like strings are OOXML namespace identifiers.
-- Static scans: no plaintext administrator passwords, old demo credentials, demo account seeds, or test-fixture password values in `dist`, UI, README, exports, previews, reports, or persisted database responses. The generated database never stores plaintext passwords.
+- Static scans: no plaintext administrator passwords, retired administrator username, old demo credentials, demo account seeds, or test-fixture password values in `dist`, UI, README, exports, previews, reports, or persisted database responses. The generated database never stores plaintext passwords.
 
-Headless Chromium E2E covered three contexts: a normal tab, a `sandbox="allow-scripts"` iframe with blocked localStorage, and the generated `file://` artifact. Each context had zero console errors, zero page errors, and zero external runtime requests.
+Headless Chromium E2E covered four contexts: a normal tab, a retired-username migration tab, a `sandbox="allow-scripts"` iframe with blocked localStorage, and the generated `file://` artifact. Each context had zero console errors, zero page errors, and zero external runtime requests.
 
 The requested acceptance checks passed in the normal browser:
 
@@ -118,7 +118,7 @@ The requested acceptance checks passed in the normal browser:
 9. Student and teacher self-service password changes with wrong-current, mismatch, old-password rejection, and new-password sign-in.
 10. Administrator access restrictions for student/teacher roles, including direct URL hashes and no removed Accounts controls.
 
-Additional checks passed: both administrator display names, persistence after reload, every admin view rendering, preserved serial CSV export, settings save, factory reset, offline navigation, in-page self-test, and the clean two-administrator factory database with zero student/teacher accounts, serials, or requests.
+Additional checks passed: both administrator display names, new-username sign-in, retired-username rejection, migration with preserved settings, persistence after reload, every admin view rendering, preserved serial CSV export, settings save, factory reset, offline navigation, in-page self-test, and the clean two-administrator factory database with zero student/teacher accounts, serials, or requests.
 
 ## Repository layout
 

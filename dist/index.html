@@ -4991,12 +4991,30 @@ const PERMANENT_ADMINS = [
     id: 'acc-admin-ruthvika20',
     role: 'admin',
     name: 'RUTHVIKA VANKADHARA',
-    loginId: 'RUTHVIKA20',
+    loginId: 'ruthvikabrs123',
     salt: 'edb1b5eb720f483b71a2d5893648dbb2',
     passwordHash: 'a5109b7be61c9de9fb337e0c065afb248a3795b5f5c90cb6d90dc28b7c0d7224',
     hashIterations: PASSWORD_HASH_ITERATIONS
   }
 ];
+
+/* The stable internal id lets existing local databases migrate from a retired login ID. */
+function legacyAdminLoginId(admin) {
+  return String(admin.id || '').replace(/^acc-admin-/, '').toUpperCase();
+}
+
+function canonicalPermanentAdmin(account) {
+  if (!account) return null;
+  const loginId = String(account.loginId || '').toUpperCase();
+  return PERMANENT_ADMINS.find((admin) => {
+    const canonicalLoginId = admin.loginId.toUpperCase();
+    const legacyLoginId = legacyAdminLoginId(admin);
+    return admin.id === account.id
+      || (account.role === 'admin' && account.permanent
+        && (loginId === canonicalLoginId
+          || (legacyLoginId && legacyLoginId !== canonicalLoginId && loginId === legacyLoginId)));
+  }) || null;
+}
 
 let currentDb = null;
 
@@ -5123,6 +5141,9 @@ function validateDatabase(raw) {
   assert(candidate.accounts.length > 0, 'Database must contain at least one account.');
   assert(candidate.accounts.some((account) => account && account.role === 'admin'), 'Database must contain an admin account.');
 
+  // Canonicalise before strict checks so a persisted retired admin username is migrated, not discarded.
+  candidate = normaliseDatabase(candidate);
+
   const accountIds = new Set();
   const loginIds = new Set();
   const studentSerials = new Set();
@@ -5193,7 +5214,7 @@ function validateDatabase(raw) {
   assert(settings.slotMinutes >= 5, 'Slot length must be at least 5 minutes.');
   assert(settings.dailyCapMinutes >= settings.slotMinutes, 'Daily cap must be at least one slot.');
 
-  return normaliseDatabase(candidate);
+  return candidate;
 }
 function normaliseDatabase(candidate) {
   const db = clone(candidate);
@@ -5206,8 +5227,7 @@ function normaliseDatabase(candidate) {
     const safe = { ...account };
     delete safe.password;
     delete safe.serialBoundAt;
-    const canonicalAdmin = PERMANENT_ADMINS.find((admin) => admin.id === safe.id
-      || String(safe.loginId || '').toUpperCase() === admin.loginId.toUpperCase());
+    const canonicalAdmin = canonicalPermanentAdmin(safe);
     if (canonicalAdmin) {
       safe.id = canonicalAdmin.id;
       safe.name = canonicalAdmin.name;
