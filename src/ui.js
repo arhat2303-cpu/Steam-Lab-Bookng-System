@@ -11,10 +11,12 @@ import {
   bootstrap, ensureSeedFiles, getSessionAccount, login, logout,
   submitRequest, previewEstimate, getRequestFile, reestimateFromFile, approveRequest,
   rejectRequest, confirmSlot, startPrint, markPrinted, handOver, cancelRequest,
-  rerunScheduler, createAccount, updateAccount, deleteAccount, generateSerials,
-  assignSerial, updateSettings, resetSettings, computeReports, buildScheduleBoard,
+  rerunScheduler, assignSerial, updateSettings, resetSettings, computeReports, buildScheduleBoard,
   exportRequestsCsv, exportSerialsCsv, exportReportCsv, exportBackup, parseBackupText,
-  importBackup, resetFactoryData, STATUS_LABELS, PRIORITY_LABELS, MATERIALS,
+  importBackup, resetFactoryData,
+  createSerialEntry, updateSerialEntry, deleteSerialEntry, bulkCreateSerialRows,
+  serialsTemplate, previewSerialsWorkbook, importSerialRows, changeOwnPassword,
+  STATUS_LABELS, PRIORITY_LABELS, MATERIALS,
   scheduleText, statusText, effectiveMinutes, getUploadExtensionsText, fileSizeLabel,
   decodeBackupBytes
 } from './api.js';
@@ -84,8 +86,20 @@ function makeDraft() {
   };
 }
 
-function makeAccountForm() {
-  return { name: '', role: 'student', className: '', loginId: '', password: '', serial: '', active: true, autoApprove: false };
+function makeSerialForm(role = 'student') {
+  return { name: '', className: '', serial: '', username: '', password: '', active: true, autoApprove: false, role };
+}
+
+function makeBulkSerialRow(role = 'student', index = 1) {
+  return { id: makeId('bulk'), ...makeSerialForm(role), source: `Bulk row ${index}`, rowNumber: index };
+}
+
+function makeBulkSerialRows(role = 'student', count = 2) {
+  return Array.from({ length: count }, (_, index) => makeBulkSerialRow(role, index + 1));
+}
+
+function blankPasswordForm() {
+  return { currentPassword: '', newPassword: '', confirmPassword: '' };
 }
 
 function makeSettingsForm(settings) {
@@ -119,13 +133,36 @@ const state = {
   draft: makeDraft(),
   lastSubmission: null,
   confirm: null,
-  editAccountId: null,
-  accountForm: makeAccountForm(),
   settingsForm: makeSettingsForm(DEFAULT_SETTINGS),
   backupFile: null,
   backupFileName: '',
-  toasts: []
+  toasts: [],
+  serialMode: 'student',
+  serialFormOpen: false,
+  serialEditId: null,
+  serialForm: makeSerialForm('student'),
+  bulkSerialRows: makeBulkSerialRows('student', 2),
+  bulkReport: null,
+  excelFile: null,
+  excelFileName: '',
+  excelPreview: null,
+  excelReport: null,
+  passwordChangeOpen: false,
+  passwordForm: blankPasswordForm()
 };
+
+function resetSerialWorkspace(role = 'student') {
+  state.serialMode = role === 'teacher' ? 'teacher' : 'student';
+  state.serialFormOpen = false;
+  state.serialEditId = null;
+  state.serialForm = makeSerialForm(state.serialMode);
+  state.bulkSerialRows = makeBulkSerialRows(state.serialMode, 2);
+  state.bulkReport = null;
+  state.excelFile = null;
+  state.excelFileName = '';
+  state.excelPreview = null;
+  state.excelReport = null;
+}
 
 let fatalError = null;
 let bootstrapped = false;
@@ -144,8 +181,7 @@ const VIEW_META = {
   'admin-schedule': { title: 'Schedule board', subtitle: 'Full visibility of booked blocks and cool-down gaps.' },
   'admin-requests': { title: 'All requests', subtitle: 'Search, filter, and run the print workflow.' },
   'admin-new-request': { title: 'Submit on behalf of a student', subtitle: 'Create a real student request using the same upload and estimator.' },
-  'admin-accounts': { title: 'Accounts', subtitle: 'Create student and teacher accounts, edit usernames and passwords, and assign class and serial details.' },
-  'admin-serials': { title: 'Serial numbers', subtitle: 'Bulk-generate serials and see free versus assigned codes.' },
+  'admin-serials': { title: 'Serial numbers', subtitle: 'Create, bulk-add, import, edit, delete, and export linked serial records and accounts.' },
   'admin-settings': { title: 'Lab settings', subtitle: 'Lab hours, capacity, lead time, upload limits, and build volume.' },
   'admin-data': { title: 'Data & backup', subtitle: 'Export JSON and CSV, import a validated backup, or restore the two permanent administrator accounts.' }
 };
@@ -167,7 +203,6 @@ const NAV = {
     { view: 'admin-schedule', label: 'Schedule board', icon: 'calendar' },
     { view: 'admin-requests', label: 'All requests', icon: 'list' },
     { view: 'admin-new-request', label: 'New request', icon: 'upload' },
-    { view: 'admin-accounts', label: 'Accounts', icon: 'users' },
     { view: 'admin-serials', label: 'Serials', icon: 'key' },
     { view: 'admin-settings', label: 'Lab settings', icon: 'settings' },
     { view: 'admin-data', label: 'Data & backup', icon: 'database' }
@@ -449,6 +484,26 @@ function renderConfirmBar() {
     </div>`;
 }
 
+function renderPasswordChangeForm() {
+  const form = state.passwordForm;
+  return `
+    <div class="card soft" style="margin-top:16px" data-testid="password-change-panel">
+      <div class="card-header"><div><h3>Change password</h3><p>Your registered name, class, serial number, and username stay read-only.</p></div></div>
+      <form data-form="change-password" data-testid="password-change-form" novalidate>
+        <div class="form-grid">
+          <div class="form-field"><label for="current-password">Current Password</label><input id="current-password" name="currentPassword" type="password" value="${esc(form.currentPassword)}" autocomplete="current-password">${fieldError('currentPassword')}</div>
+          <div class="form-field"><label for="new-password">New Password</label><input id="new-password" name="newPassword" type="password" value="${esc(form.newPassword)}" autocomplete="new-password">${fieldError('newPassword')}</div>
+          <div class="form-field"><label for="confirm-password">Confirm New Password</label><input id="confirm-password" name="confirmPassword" type="password" value="${esc(form.confirmPassword)}" autocomplete="new-password">${fieldError('confirmPassword')}</div>
+          <div class="form-field span-2">${fieldError('general')}</div>
+        </div>
+        <div class="btn-row" style="margin-top:16px">
+          <button class="btn primary" type="button" data-action="submit-form" data-form-kind="change-password" data-testid="save-password">${icon('save', 17)} Save new password</button>
+          <button class="btn" type="button" data-action="cancel-password-change">Cancel</button>
+        </div>
+      </form>
+    </div>`;
+}
+
 function renderAccountIdentity(account) {
   const roleLabel = account.role === 'student' ? 'Student' : account.role === 'teacher' ? 'Teacher' : 'Administrator';
   const fourth = account.role === 'student'
@@ -456,11 +511,12 @@ function renderAccountIdentity(account) {
     : account.role === 'teacher'
       ? metric('Issued serial', account.serial || 'Not required', 'Optional lab record')
       : metric('Account scope', 'All registered users', 'Full administrator access');
+  const passwordAction = account.role === 'admin' ? '' : `<button class="btn small" type="button" data-action="open-password-change" data-testid="open-password-change">${icon('key', 16)} Change password</button>`;
   return `
     <section class="card" data-testid="account-identity">
       <div class="card-header">
         <div><h2>Registered account</h2><p>These details come directly from the account created by an administrator and are read-only here.</p></div>
-        <span class="badge neutral">${esc(roleLabel)}</span>
+        <div class="btn-row"><span class="badge neutral">${esc(roleLabel)}</span>${passwordAction}</div>
       </div>
       <div class="grid-4">
         ${metric('Full name', account.name, 'Registered identity')}
@@ -468,6 +524,7 @@ function renderAccountIdentity(account) {
         ${account.role === 'student' ? metric('Class', account.className || 'Not recorded', 'Assigned by administrator') : metric('Role', roleLabel, 'Account permission')}
         ${fourth}
       </div>
+      ${state.passwordChangeOpen && account.role !== 'admin' ? renderPasswordChangeForm() : ''}
     </section>`;
 }
 
@@ -504,7 +561,6 @@ function renderView() {
     case 'admin-requests': return renderAllRequests();
     case 'admin-reports': return renderAdminReports();
     case 'admin-new-request': return renderAdminNewRequest();
-    case 'admin-accounts': return renderAdminAccounts();
     case 'admin-serials': return renderAdminSerials();
     case 'admin-settings': return renderAdminSettings();
     case 'admin-data': return renderAdminData();
@@ -912,117 +968,245 @@ function renderSchedule() {
     </section>`;
 }
 
-function renderAdminAccounts() {
-  const db = getDb();
-  const form = state.accountForm;
-  const editing = Boolean(state.editAccountId);
-  const role = form.role;
-  const nameLabel = role === 'student' ? 'Student’s full name' : role === 'teacher' ? 'Teacher’s full name' : 'Administrator display name';
-  const classField = role === 'student' ? `
-    <div class="form-field"><label for="account-className">Class</label><input id="account-className" name="className" data-account-field type="text" value="${esc(form.className)}" placeholder="Class or form">${fieldError('className')}</div>` : '';
-  const serialField = role === 'student' ? `
-    <div class="form-field"><label for="account-serial">Student serial number</label><input id="account-serial" name="serial" data-account-field type="text" value="${esc(form.serial)}" placeholder="Unique STU-#### serial">${fieldError('serial')}</div>` : '';
+function serialModeCards(mode) {
   return `
-    <section class="grid-4" style="margin-bottom:20px">
-      ${metric('Accounts', db.accounts.length, 'All registered users')}
-      ${metric('Students', db.accounts.filter((account) => account.role === 'student').length, 'Created by an administrator')}
-      ${metric('Teachers', db.accounts.filter((account) => account.role === 'teacher').length, 'Review and workflow')}
-      ${metric('Admins', db.accounts.filter((account) => account.role === 'admin').length, 'Full access')}
-    </section>
-    <section class="card">
-      <div class="card-header"><div><h2>${editing ? 'Edit account' : 'Create account'}</h2><p>Passwords are stored as salted hashes and are never displayed. Usernames and student serial numbers must be unique.</p></div></div>
-      <form data-form="accounts" data-testid="account-form" novalidate>
-        <div class="form-grid">
-          <div class="form-field"><label for="account-name">${esc(nameLabel)}</label><input id="account-name" name="name" data-account-field type="text" value="${esc(form.name)}">${fieldError('name')}</div>
-          <div class="form-field"><label for="account-role">Role</label><select id="account-role" name="role" data-account-field>${['student', 'teacher', 'admin'].map((option) => `<option value="${esc(option)}"${selected(role, option)}>${esc(option)}</option>`).join('')}</select>${fieldError('role')}</div>
-          ${classField}
-          <div class="form-field"><label for="account-loginId">Username</label><input id="account-loginId" name="loginId" data-account-field type="text" value="${esc(form.loginId)}">${fieldError('loginId')}</div>
-          <div class="form-field"><label for="account-password">${editing ? 'New password (blank keeps current)' : 'Password'}</label><input id="account-password" name="password" data-account-field type="password" value="${esc(form.password)}" autocomplete="new-password">${fieldError('password')}</div>
-          ${serialField}
-          <div class="form-field">
-            <label>Account options</label>
-            <div class="checkbox-row" style="padding-top:10px">
-              <label><input type="checkbox" name="active" data-account-field${checked(form.active)}> Active</label>
-              <label><input type="checkbox" name="autoApprove" data-account-field${checked(form.autoApprove)}${role === 'student' ? '' : ' disabled'}> Auto-approve student jobs</label>
-            </div>
+    <section class="serial-mode-grid" aria-label="Serial management options">
+      <button class="serial-mode-card ${mode === 'student' ? 'selected' : ''}" type="button" data-action="serial-mode" data-mode="student" data-testid="serial-mode-student">
+        <span class="serial-mode-icon">${icon('student', 30)}</span>
+        <span><strong>Student Serials</strong><small>Full name, class, serial number, username, and password.</small></span>
+      </button>
+      <button class="serial-mode-card ${mode === 'teacher' ? 'selected' : ''}" type="button" data-action="serial-mode" data-mode="teacher" data-testid="serial-mode-teacher">
+        <span class="serial-mode-icon">${icon('teacher', 30)}</span>
+        <span><strong>Teacher Serials</strong><small>Full name, optional serial number, username, and password.</small></span>
+      </button>
+    </section>`;
+}
+
+function renderSerialForm(mode, editing) {
+  const form = state.serialForm;
+  const title = mode === 'student' ? 'Student' : 'Teacher';
+  const classField = mode === 'student' ? `
+    <div class="form-field"><label for="serial-className">Class</label><input id="serial-className" name="className" data-serial-field type="text" value="${esc(form.className)}" placeholder="Class or form">${fieldError('className')}</div>` : '';
+  const serialLabel = mode === 'student' ? 'Student Serial Number' : 'Teacher Serial Number (if applicable)';
+  const serialPlaceholder = mode === 'student' ? 'Unique STU-#### serial' : 'Optional T-#### serial';
+  const autoApprove = mode === 'student' ? `<label><input type="checkbox" name="autoApprove" data-serial-field${checked(form.autoApprove)}> Auto-approve student jobs</label>` : '';
+  return `
+    <form data-form="serial-record" data-testid="serial-form" data-role="${esc(mode)}" novalidate>
+      <div class="form-grid">
+        <div class="form-field"><label for="serial-name">${title} Full Name</label><input id="serial-name" name="name" data-serial-field type="text" value="${esc(form.name)}" autocomplete="off">${fieldError('name')}</div>
+        ${classField}
+        <div class="form-field"><label for="serial-code">${serialLabel}</label><input id="serial-code" name="serial" data-serial-field type="text" value="${esc(form.serial)}" placeholder="${serialPlaceholder}">${fieldError('serial')}</div>
+        <div class="form-field"><label for="serial-username">Username</label><input id="serial-username" name="username" data-serial-field type="text" value="${esc(form.username)}" autocomplete="off">${fieldError('username')}</div>
+        <div class="form-field"><label for="serial-password">${editing ? 'New password (blank keeps current)' : 'Password'}</label><input id="serial-password" name="password" data-serial-field type="password" value="${esc(form.password)}" autocomplete="new-password">${fieldError('password')}</div>
+        <div class="form-field">
+          <label>Account options</label>
+          <div class="checkbox-row" style="padding-top:10px">
+            <label><input type="checkbox" name="active" data-serial-field${checked(form.active)}> Active</label>
+            ${autoApprove}
           </div>
-          <div class="form-field span-2">${fieldError('general')}</div>
         </div>
-        <div class="btn-row" style="margin-top:18px">
-          <button class="btn primary" type="button" data-action="submit-form" data-form-kind="accounts" data-testid="save-account">${icon('save', 17)} ${editing ? 'Save changes' : 'Create account'}</button>
-          ${editing ? `<button class="btn" type="button" data-action="cancel-edit">Cancel edit</button>` : ''}
-          <button class="btn" type="button" data-action="nav" data-view="admin-serials">${icon('key', 17)} Generate serials</button>
+        <div class="form-field span-2">${fieldError('general')}</div>
+      </div>
+      <div class="btn-row" style="margin-top:18px">
+        <button class="btn primary" type="button" data-action="submit-form" data-form-kind="serial-record" data-testid="save-serial">${icon('save', 17)} ${editing ? 'Save changes' : `Save ${title} serial`}</button>
+        <button class="btn" type="button" data-action="cancel-serial-form">Cancel</button>
+      </div>
+    </form>`;
+}
+
+function serialRecordsHtml(db, mode) {
+  const accounts = db.accounts.filter((account) => account.role === mode && !account.permanent);
+  if (!accounts.length) {
+    return emptyState(`No ${mode} serial records`, `Use + Add ${mode === 'student' ? 'Student' : 'Teacher'} Serial, bulk entry, or Excel import to create linked records.`, 'key');
+  }
+  return `
+    <div class="table-wrap"><table>
+      <thead><tr><th>Full name</th>${mode === 'student' ? '<th>Class</th>' : ''}<th>Serial number</th><th>Username</th><th>Linked account</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>${accounts.map((account) => {
+        const record = account.serial ? findSerial(db, account.serial) : null;
+        return `<tr data-testid="serial-record" data-login-id="${esc(account.loginId)}" data-serial="${esc(account.serial || '')}">
+          <td><strong>${esc(account.name)}</strong><small>Created ${esc(formatDate(account.createdAt))}</small></td>
+          ${mode === 'student' ? `<td>${esc(account.className || '—')}</td>` : ''}
+          <td>${account.serial ? `<strong>${esc(account.serial)}</strong><small>${record ? esc(record.status) : 'untracked'}</small>` : '<small>Not required</small>'}</td>
+          <td>${esc(account.loginId)}</td>
+          <td><span class="badge approved">Linked</span><small>Login credentials saved</small></td>
+          <td><span class="badge ${account.active ? 'handed' : 'cancelled'}">${account.active ? 'Active' : 'Inactive'}</span>${account.autoApprove ? ' <span class="badge approved">Auto-approve</span>' : ''}</td>
+          <td><div class="table-actions"><button class="btn small" type="button" data-action="edit-serial" data-id="${esc(account.id)}">${icon('edit', 15)} Edit</button><button class="btn small danger" type="button" data-action="delete-serial" data-id="${esc(account.id)}">${icon('trash', 15)} Delete</button></div></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+}
+
+function bulkHeadHtml(mode) {
+  const columns = mode === 'student'
+    ? ['Full Name', 'Class', 'Serial Number', 'Username', 'Password']
+    : ['Full Name', 'Serial Number (if applicable)', 'Username', 'Password'];
+  return `<div class="bulk-serial-head ${mode}" aria-hidden="true"><span></span>${columns.map((column) => `<span>${esc(column)}</span>`).join('')}<span></span></div>`;
+}
+
+function bulkRowsHtml(mode) {
+  return state.bulkSerialRows.map((row, index) => `
+    <div class="bulk-serial-row ${mode}" data-testid="bulk-serial-row" data-bulk-row data-row-id="${esc(row.id)}" data-index="${index}">
+      <span class="bulk-row-number">${index + 1}</span>
+      <input data-bulk-field="name" type="text" value="${esc(row.name)}" placeholder="Full name" aria-label="Full name row ${index + 1}">
+      ${mode === 'student' ? `<input data-bulk-field="className" type="text" value="${esc(row.className)}" placeholder="Class" aria-label="Class row ${index + 1}">` : ''}
+      <input data-bulk-field="serial" type="text" value="${esc(row.serial)}" placeholder="${mode === 'student' ? 'STU-####' : 'Optional T-####'}" aria-label="Serial number row ${index + 1}">
+      <input data-bulk-field="username" type="text" value="${esc(row.username)}" placeholder="Username" aria-label="Username row ${index + 1}">
+      <input data-bulk-field="password" type="password" value="${esc(row.password)}" placeholder="Password" aria-label="Password row ${index + 1}" autocomplete="new-password">
+      <button class="btn small danger" type="button" data-action="remove-bulk-row" data-index="${index}" aria-label="Remove row ${index + 1}"${state.bulkSerialRows.length <= 1 ? ' disabled' : ''}>${icon('x', 15)}</button>
+    </div>`).join('');
+}
+
+function reportRowHtml(row) {
+  return `<tr>
+    <td>${esc(row.source || `Row ${row.rowNumber || ''}`)}</td>
+    <td>${esc(row.name || '—')}</td>
+    <td>${esc(row.username || '—')}</td>
+    <td>${esc(row.serial || '—')}</td>
+    <td><span class="badge ${row.status === 'created' ? 'approved' : 'cancelled'}">${row.status === 'created' ? 'Created' : 'Unsuccessful'}</span></td>
+    <td>${esc(row.reason || (row.errorText || ''))}</td>
+  </tr>`;
+}
+
+function bulkReportHtml() {
+  const report = state.bulkReport;
+  if (!report) return '';
+  return `
+    <div class="card soft" style="margin-top:16px" data-testid="bulk-report">
+      <div class="card-header"><div><h3>Bulk result</h3><p>${report.successful} successful, ${report.unsuccessful} unsuccessful, ${report.total} total.</p></div></div>
+      <div class="message-box ${report.successful ? 'success' : 'error'}">${report.successful} record${report.successful === 1 ? '' : 's'} created and linked. ${report.unsuccessful} record${report.unsuccessful === 1 ? '' : 's'} need attention.</div>
+      <div class="table-wrap"><table><thead><tr><th>Source</th><th>Full name</th><th>Username</th><th>Serial</th><th>Result</th><th>Detail</th></tr></thead><tbody>${report.report.map(reportRowHtml).join('')}</tbody></table></div>
+    </div>`;
+}
+
+function bulkSerialsHtml(mode) {
+  return `
+    <section class="card" data-testid="bulk-generate-section">
+      <div class="card-header"><div><h2>Bulk Generate</h2><p>Enter every username and password yourself. Full name, class, serial number, username, and password remain separate fields.</p></div></div>
+      <form data-form="bulk-serials" data-testid="bulk-serials-form" novalidate>
+        ${bulkHeadHtml(mode)}
+        ${bulkRowsHtml(mode)}
+        <div class="btn-row" style="margin-top:16px">
+          <button class="btn primary" type="button" data-action="submit-form" data-form-kind="bulk-serials" data-testid="save-bulk-serials">${icon('save', 17)} Bulk Generate ${mode === 'student' ? 'Student' : 'Teacher'} Serials</button>
+          <button class="btn" type="button" data-action="add-bulk-row" data-testid="add-bulk-row">${icon('plus', 17)} Add row</button>
         </div>
       </form>
-    </section>
-    <section class="card">
-      <div class="card-header"><div><h2>Account list</h2><p>All registered users are visible here. Existing requests are preserved if an account is deleted.</p></div></div>
+      ${bulkReportHtml()}
+    </section>`;
+}
+
+function excelPreviewHtml() {
+  const preview = state.excelPreview;
+  if (!preview) return '';
+  return `
+    <div class="card soft" style="margin-top:16px" data-testid="excel-preview">
+      <div class="card-header"><div><h3>Import preview</h3><p>${preview.sheets.length} worksheet${preview.sheets.length === 1 ? '' : 's'} · ${preview.total} row${preview.total === 1 ? '' : 's'} · ${preview.validCount} ready · ${preview.invalidCount} need attention.</p></div></div>
+      <div class="message-box warning">Duplicate usernames, duplicate serial numbers, missing fields, and incorrect formats are marked below. Passwords are never shown in this preview.</div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Full name</th><th>Role</th><th>Username</th><th>Class</th><th>Serial</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody>${db.accounts.map((account) => {
-          const serial = account.serial ? findSerial(db, account.serial) : null;
-          const actions = account.permanent
-            ? '<span class="badge approved">Permanent</span><small>Full access · fixed account</small>'
-            : `<div class="table-actions"><button class="btn small" type="button" data-action="edit-account" data-id="${esc(account.id)}">${icon('edit', 15)} Edit</button><button class="btn small danger" type="button" data-action="delete-account" data-id="${esc(account.id)}">${icon('trash', 15)} Delete</button></div>`;
-          return `<tr data-login-id="${esc(account.loginId)}" data-testid="account-row">
-            <td><strong>${esc(account.name)}</strong><small>Created ${esc(formatDate(account.createdAt))}</small></td>
-            <td>${esc(account.role)}</td>
-            <td>${esc(account.loginId)}</td>
-            <td>${account.role === 'student' ? esc(account.className || '—') : '<small>Not required</small>'}</td>
-            <td>${account.serial ? `<strong>${esc(account.serial)}</strong><small>${serial ? esc(serial.status) : 'untracked'}${account.serialAssignedAt ? ` · assigned ${esc(formatDate(account.serialAssignedAt))}` : ''}</small>` : `<small>${account.role === 'student' ? 'Required' : 'Not required'}</small>`}</td>
-            <td><span class="badge ${account.active ? 'handed' : 'cancelled'}">${account.active ? 'Active' : 'Inactive'}</span>${account.autoApprove ? ' <span class="badge approved">Auto-approve</span>' : ''}</td>
-            <td>${actions}</td>
-          </tr>`;
-        }).join('')}</tbody>
+        <thead><tr><th>Source</th><th>Role</th><th>Full name</th><th>Class</th><th>Serial</th><th>Username</th><th>Password</th><th>Status</th><th>Detail</th></tr></thead>
+        <tbody>${preview.rows.map((row) => `<tr>
+          <td>${esc(row.source || `Row ${row.rowNumber || ''}`)}</td>
+          <td>${esc(row.role)}</td>
+          <td>${esc(row.name || '—')}</td>
+          <td>${row.role === 'student' ? esc(row.className || '—') : '<small>Not required</small>'}</td>
+          <td>${esc(row.serial || '—')}</td>
+          <td>${esc(row.username || '—')}</td>
+          <td>${row.password ? '<span class="badge handed">Provided</span>' : '<span class="badge cancelled">Missing</span>'}</td>
+          <td><span class="badge ${row.valid ? 'approved' : 'cancelled'}">${row.valid ? 'Ready' : 'Unsuccessful'}</span></td>
+          <td>${esc(row.errorText || 'Ready to import')}</td>
+        </tr>`).join('')}</tbody>
       </table></div>
+      <div class="btn-row" style="margin-top:16px">
+        <button class="btn primary" type="button" data-action="confirm-excel-import" data-testid="confirm-excel-import"${preview.validCount ? '' : ' disabled'}>${icon('check', 17)} Confirm import</button>
+        <button class="btn" type="button" data-action="cancel-excel-import">Cancel</button>
+      </div>
+    </div>`;
+}
+
+function excelReportHtml() {
+  const report = state.excelReport;
+  if (!report) return '';
+  return `
+    <div class="card soft" style="margin-top:16px" data-testid="excel-report">
+      <div class="card-header"><div><h3>Import success/error report</h3><p>${report.successful} successful, ${report.unsuccessful} unsuccessful, ${report.total} total.</p></div></div>
+      <div class="message-box ${report.successful ? 'success' : 'error'}">${report.successful} record${report.successful === 1 ? '' : 's'} imported and linked. ${report.unsuccessful} row${report.unsuccessful === 1 ? '' : 's'} were skipped.</div>
+      <div class="table-wrap"><table><thead><tr><th>Source</th><th>Full name</th><th>Username</th><th>Serial</th><th>Result</th><th>Detail</th></tr></thead><tbody>${report.report.map(reportRowHtml).join('')}</tbody></table></div>
+    </div>`;
+}
+
+function excelSerialsHtml() {
+  return `
+    <section class="card" data-testid="excel-section">
+      <div class="card-header"><div><h2>Excel template & import</h2><p>Download a formatted two-sheet workbook, fill it in, preview every row, then confirm the import.</p></div></div>
+      <div class="btn-row"><button class="btn primary" type="button" data-action="download-excel-template" data-testid="download-excel-template">${icon('download', 17)} Download Excel Template</button></div>
+      <div class="form-section">
+        <h3>Upload Excel file</h3>
+        <p>Student columns: Full Name, Class, Serial Number, Username, Password. Teacher columns: Full Name, Serial Number (if applicable), Username, Password.</p>
+        <div class="form-field"><label for="excel-file">Completed .xlsx workbook</label><input id="excel-file" data-field="excel-file" data-testid="excel-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></div>
+        ${state.excelFileName ? `<div class="file-pill" style="margin-top:10px">${icon('file', 17)} ${esc(state.excelFileName)}</div>` : ''}
+        <div class="btn-row" style="margin-top:14px"><button class="btn" type="button" data-action="upload-excel" data-testid="upload-excel">${icon('upload', 17)} Preview Excel import</button></div>
+        ${state.errors.excel ? `<div class="message-box error" style="margin-top:12px">${esc(state.errors.excel)}</div>` : ''}
+        ${excelPreviewHtml()}
+        ${excelReportHtml()}
+      </div>
+    </section>`;
+}
+
+function serialPoolHtml(db) {
+  const free = db.serials.filter((serial) => serial.status === 'free');
+  const eligibleAccounts = (role) => db.accounts.filter((account) => account.role === role && account.active && !account.permanent);
+  return `
+    <section class="card">
+      <div class="card-header">
+        <div><h2>Serial pool</h2><p>All assigned and free codes. Assignment controls remain available for pre-existing free codes.</p></div>
+        <button class="btn" type="button" data-action="export-serials">${icon('download', 17)} Export serials CSV</button>
+      </div>
+      ${free.length ? `<div class="serial-grid" style="margin-bottom:16px">${free.map((serial) => `<div class="serial-chip free">${esc(serial.code)} · ${esc(serial.role)}</div>`).join('')}</div>` : ''}
+      ${state.errors.serialAssign ? `<div class="message-box error">${esc(state.errors.serialAssign)}</div>` : ''}
+      ${db.serials.length ? `
+        <div class="table-wrap"><table>
+          <thead><tr><th>Serial</th><th>Role</th><th>Status</th><th>Assigned to</th><th>Assigned at</th><th>Assign</th></tr></thead>
+          <tbody>${db.serials.slice().sort((a, b) => a.code.localeCompare(b.code)).map((serial) => {
+            const account = serial.assignedTo ? findAccountById(db, serial.assignedTo) : null;
+            const accounts = eligibleAccounts(serial.role);
+            return `<tr>
+              <td><strong>${esc(serial.code)}</strong></td><td>${esc(serial.role)}</td>
+              <td><span class="badge ${serial.status === 'free' ? 'handed' : 'approved'}">${esc(serial.status)}</span></td>
+              <td>${account ? `${esc(account.name)}<small>${esc(account.loginId)}</small>` : '<small>Unassigned</small>'}</td>
+              <td>${serial.assignedAt ? esc(formatDateTime(serial.assignedAt)) : '<small>Not assigned yet</small>'}</td>
+              <td>${serial.status === 'free' ? `<div class="table-actions"><select data-serial-select="${esc(serial.code)}" aria-label="Account for ${esc(serial.code)}"><option value="">Choose account</option>${accounts.map((item) => `<option value="${esc(item.id)}">${esc(item.name)} · ${esc(item.loginId)}</option>`).join('')}</select><button class="btn small" type="button" data-action="assign-serial" data-code="${esc(serial.code)}">Assign</button></div>` : '<small>Linked to this account</small>'}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table></div>` : emptyState('No serial records yet', 'Create an individual record, use bulk entry, or import a completed Excel template.', 'key')}
     </section>`;
 }
 
 function renderAdminSerials() {
   const db = getDb();
+  const mode = state.serialMode === 'teacher' ? 'teacher' : 'student';
+  const title = mode === 'student' ? 'Student Serials' : 'Teacher Serials';
+  const accounts = db.accounts.filter((account) => account.role === mode && !account.permanent);
+  const modeSerials = db.serials.filter((serial) => serial.role === mode);
   const free = db.serials.filter((serial) => serial.status === 'free');
-  const assigned = db.serials.filter((serial) => serial.status === 'assigned');
-  const eligibleAccounts = (role) => db.accounts.filter((account) => account.role === role && account.active);
   return `
-    <section class="grid-3" style="margin-bottom:20px">
-      ${metric('Free', free.length, 'Ready to assign')}
-      ${metric('Assigned', assigned.length, 'Linked to one account')}
-      ${metric('All codes', db.serials.length, 'Generated or entered')}
+    ${serialModeCards(mode)}
+    <section class="grid-4" style="margin-bottom:20px">
+      ${metric(`${mode} records`, accounts.length, 'Linked login accounts')}
+      ${metric('Assigned codes', modeSerials.filter((serial) => serial.status === 'assigned').length, 'Synchronised serial records')}
+      ${metric('Free codes', free.length, 'Available for assignment')}
+      ${metric('All codes', db.serials.length, 'Created or imported')}
     </section>
-    <div class="grid-2">
-      <section class="card">
-        <div class="card-header"><div><h2>Bulk-generate serials</h2><p>Student codes use STU-####, teacher codes use T-####. Student serials can also be entered directly on the account form.</p></div></div>
-        <form data-form="generate-serials" novalidate>
-          <div class="form-grid">
-            <div class="form-field"><label for="serial-role">Role</label><select id="serial-role" name="role"><option value="student">Student</option><option value="teacher">Teacher</option></select>${fieldError('role')}</div>
-            <div class="form-field"><label for="serial-count">How many</label><input id="serial-count" name="count" type="number" min="1" max="50" value="5">${fieldError('count')}</div>
-          </div>
-          <div class="btn-row" style="margin-top:16px"><button class="btn primary" type="button" data-action="submit-form" data-form-kind="generate-serials">${icon('plus', 17)} Generate serials</button><button class="btn" type="button" data-action="export-serials">${icon('download', 17)} Export CSV</button></div>
-        </form>
-      </section>
-      <section class="card">
-        <div class="card-header"><div><h2>Free codes</h2><p>Newly generated serials appear here immediately.</p></div></div>
-        ${free.length ? `<div class="serial-grid">${free.map((serial) => `<div class="serial-chip free">${esc(serial.code)} · ${esc(serial.role)}</div>`).join('')}</div>` : emptyState('No free serials', 'Generate a batch or enter a unique student serial when creating an account.', 'key')}
-      </section>
-    </div>
     <section class="card">
-      <div class="card-header"><div><h2>Serial pool</h2><p>Each code is linked to at most one account. Assignment controls remain available for free codes.</p></div></div>
-      ${state.errors.serialAssign ? `<div class="message-box error">${esc(state.errors.serialAssign)}</div>` : ''}
-      <div class="table-wrap"><table>
-        <thead><tr><th>Serial</th><th>Role</th><th>Status</th><th>Assigned to</th><th>Assigned at</th><th>Assign</th></tr></thead>
-        <tbody>${db.serials.slice().sort((a, b) => a.code.localeCompare(b.code)).map((serial) => {
-          const account = serial.assignedTo ? findAccountById(db, serial.assignedTo) : null;
-          const accounts = eligibleAccounts(serial.role);
-          return `<tr>
-            <td><strong>${esc(serial.code)}</strong></td><td>${esc(serial.role)}</td>
-            <td><span class="badge ${serial.status === 'free' ? 'handed' : 'approved'}">${esc(serial.status)}</span></td>
-            <td>${account ? `${esc(account.name)}<small>${esc(account.loginId)}</small>` : '<small>Unassigned</small>'}</td>
-            <td>${serial.assignedAt ? esc(formatDateTime(serial.assignedAt)) : '<small>Not assigned yet</small>'}</td>
-            <td>${serial.status === 'free' ? `<div class="table-actions"><select data-serial-select="${esc(serial.code)}" aria-label="Account for ${esc(serial.code)}"><option value="">Choose account</option>${accounts.map((item) => `<option value="${esc(item.id)}">${esc(item.name)} · ${esc(item.loginId)}</option>`).join('')}</select><button class="btn small" type="button" data-action="assign-serial" data-code="${esc(serial.code)}">Assign</button></div>` : '<small>Assigned · linked to this account</small>'}</td>
-          </tr>`;
-        }).join('')}</tbody>
-      </table></div>
-    </section>`;
+      <div class="card-header">
+        <div><h2>${title}</h2><p>Every saved record creates a linked login account. Passwords are hashed and are never displayed after entry.</p></div>
+        <button class="btn primary" type="button" data-action="add-serial-form" data-testid="add-${mode}-serial">${icon('plus', 17)} Add ${mode === 'student' ? 'Student' : 'Teacher'} Serial</button>
+      </div>
+      ${state.serialFormOpen ? renderSerialForm(mode, Boolean(state.serialEditId)) : ''}
+      ${serialRecordsHtml(db, mode)}
+    </section>
+    ${bulkSerialsHtml(mode)}
+    ${excelSerialsHtml()}
+    ${serialPoolHtml(db)}`;
 }
 
 function renderAdminSettings() {
@@ -1157,19 +1341,48 @@ function renderSelfTestPage() {
     </main>`;
 }
 
-function readAccountForm(form) {
+function readSerialForm(form) {
   const data = new FormData(form);
-  state.accountForm = {
+  state.serialForm = {
     name: String(data.get('name') || ''),
-    role: String(data.get('role') || 'student'),
     className: String(data.get('className') || ''),
-    loginId: String(data.get('loginId') || ''),
-    password: String(data.get('password') || ''),
     serial: String(data.get('serial') || ''),
+    username: String(data.get('username') || ''),
+    password: String(data.get('password') || ''),
     active: data.has('active'),
-    autoApprove: data.has('autoApprove')
+    autoApprove: data.has('autoApprove'),
+    role: state.serialMode
   };
-  return state.accountForm;
+  return state.serialForm;
+}
+
+function readBulkRows(form) {
+  const mode = state.serialMode === 'teacher' ? 'teacher' : 'student';
+  const rows = [...form.querySelectorAll('[data-bulk-row]')].map((row, index) => ({
+    id: row.dataset.rowId || makeId('bulk'),
+    role: mode,
+    name: row.querySelector('[data-bulk-field="name"]').value,
+    className: mode === 'student' ? row.querySelector('[data-bulk-field="className"]').value : '',
+    serial: row.querySelector('[data-bulk-field="serial"]').value,
+    username: row.querySelector('[data-bulk-field="username"]').value,
+    password: row.querySelector('[data-bulk-field="password"]').value,
+    active: true,
+    autoApprove: false,
+    source: `Bulk row ${index + 1}`,
+    rowNumber: index + 1
+  }));
+  state.bulkSerialRows = rows;
+  return rows;
+}
+
+function readPasswordForm(form) {
+  const data = new FormData(form);
+  state.passwordForm = {
+    currentPassword: String(data.get('currentPassword') || ''),
+    newPassword: String(data.get('newPassword') || ''),
+    confirmPassword: String(data.get('confirmPassword') || '')
+  };
+  return state.passwordForm;
 }
 
 function readSettingsForm(form) {
@@ -1314,6 +1527,9 @@ async function handleAction(action, button, event) {
         state.view = 'login';
         state.loginRole = role;
         state.loginForm = blankLogin();
+        state.passwordChangeOpen = false;
+        state.passwordForm = blankPasswordForm();
+        resetSerialWorkspace('student');
         clearActionErrors();
         render();
         toast('Signed out', 'success', 'Sign-in page opened.');
@@ -1447,46 +1663,147 @@ async function handleAction(action, button, event) {
         toast('Filters cleared', 'info');
         break;
       }
-      case 'edit-account': {
+      case 'serial-mode': {
+        const mode = button.dataset.mode === 'teacher' ? 'teacher' : 'student';
+        resetSerialWorkspace(mode);
+        clearActionErrors();
+        render();
+        toast(`${mode === 'student' ? 'Student' : 'Teacher'} Serials opened`, 'info');
+        break;
+      }
+      case 'add-serial-form': {
+        state.serialFormOpen = true;
+        state.serialEditId = null;
+        state.serialForm = makeSerialForm(state.serialMode);
+        clearActionErrors();
+        render();
+        toast('Add serial record', 'info', 'All fields are entered separately.');
+        break;
+      }
+      case 'cancel-serial-form': {
+        state.serialFormOpen = false;
+        state.serialEditId = null;
+        state.serialForm = makeSerialForm(state.serialMode);
+        clearActionErrors();
+        render();
+        toast('Serial form closed', 'info');
+        break;
+      }
+      case 'edit-serial': {
         const account = findAccountById(db, button.dataset.id);
-        if (!account) throw new Error('That account no longer exists.');
-        if (account.permanent) {
-          toast('Permanent administrator', 'info', 'This fixed account already has full administrator access.');
-          break;
-        }
-        state.editAccountId = account.id;
-        state.accountForm = {
+        if (!account) throw new Error('That serial record no longer exists.');
+        state.serialMode = account.role === 'teacher' ? 'teacher' : 'student';
+        state.serialFormOpen = true;
+        state.serialEditId = account.id;
+        state.serialForm = {
           name: account.name,
-          role: account.role,
           className: account.className || '',
-          loginId: account.loginId,
-          password: '',
           serial: account.serial || '',
+          username: account.loginId,
+          password: '',
           active: account.active,
-          autoApprove: Boolean(account.autoApprove)
+          autoApprove: Boolean(account.autoApprove),
+          role: state.serialMode
         };
         clearActionErrors();
         render();
-        toast('Editing account', 'info', account.loginId);
+        toast('Editing serial record', 'info', account.loginId);
         break;
       }
-      case 'cancel-edit': {
-        state.editAccountId = null;
-        state.accountForm = makeAccountForm();
-        clearActionErrors();
-        render();
-        toast('Account edit cancelled', 'info');
-        break;
-      }
-      case 'delete-account': {
+      case 'delete-serial': {
         const account = findAccountById(db, button.dataset.id);
-        if (account && account.permanent) {
-          toast('Permanent administrator', 'info', 'This fixed account cannot be deleted.');
+        state.confirm = {
+          type: 'delete-serial',
+          id: button.dataset.id,
+          title: 'Delete this serial record?',
+          label: account ? `${account.name} (${account.loginId}) and its serial ${account.serial || 'record'} will be removed with the linked login account. Existing requests stay in reports.` : 'This serial record and its linked login account will be removed.'
+        };
+        render();
+        toast('Confirm serial deletion', 'info', 'Use the confirmation bar above.');
+        break;
+      }
+      case 'add-bulk-row': {
+        const form = button.closest('form[data-form="bulk-serials"]');
+        if (form) readBulkRows(form);
+        state.bulkSerialRows.push(makeBulkSerialRow(state.serialMode, state.bulkSerialRows.length + 1));
+        state.bulkReport = null;
+        render();
+        toast('Bulk row added', 'info');
+        break;
+      }
+      case 'remove-bulk-row': {
+        const form = button.closest('form[data-form="bulk-serials"]');
+        if (form) readBulkRows(form);
+        if (state.bulkSerialRows.length <= 1) {
+          toast('At least one bulk row is required', 'info');
           break;
         }
-        state.confirm = { type: 'delete-account', id: button.dataset.id, title: 'Delete this account?', label: account ? `${account.name} (${account.loginId}) will be removed. Existing requests stay in reports.` : 'This account will be removed.' };
+        state.bulkSerialRows.splice(Number(button.dataset.index), 1);
+        state.bulkReport = null;
         render();
-        toast('Confirm account deletion', 'info', 'Use the confirmation bar above.');
+        toast('Bulk row removed', 'info');
+        break;
+      }
+      case 'download-excel-template': {
+        const template = serialsTemplate(state.session);
+        downloadBlob(template.bytes, template.fileName, template.mime);
+        toast('Excel template downloaded', 'success', template.fileName);
+        break;
+      }
+      case 'upload-excel': {
+        if (!state.excelFile) {
+          state.errors.excel = 'Choose a completed .xlsx workbook first.';
+          render();
+          toast('No Excel file selected', 'error', state.errors.excel);
+          break;
+        }
+        const bytes = await readFileBytes(state.excelFile);
+        const preview = previewSerialsWorkbook(bytes, state.session);
+        state.excelPreview = preview;
+        state.excelReport = null;
+        delete state.errors.excel;
+        render();
+        toast('Excel preview ready', 'success', `${preview.validCount} ready, ${preview.invalidCount} need attention.`);
+        break;
+      }
+      case 'confirm-excel-import': {
+        if (!state.excelPreview) throw new Error('Preview an Excel workbook before importing.');
+        const result = importSerialRows(state.excelPreview.rows, state.session);
+        state.excelReport = result;
+        state.excelPreview = null;
+        state.excelFile = null;
+        state.excelFileName = '';
+        render();
+        toast('Excel import complete', result.successful ? 'success' : 'error', `${result.successful} successful, ${result.unsuccessful} unsuccessful.`);
+        break;
+      }
+      case 'cancel-excel-import': {
+        state.excelPreview = null;
+        state.excelFile = null;
+        state.excelFileName = '';
+        delete state.errors.excel;
+        render();
+        toast('Excel import cancelled', 'info');
+        break;
+      }
+      case 'open-password-change': {
+        if (!state.session || state.session.role === 'admin') {
+          toast('Access denied', 'error', 'Only students and teachers can change their own password here.');
+          break;
+        }
+        state.passwordChangeOpen = true;
+        state.passwordForm = blankPasswordForm();
+        clearActionErrors();
+        render();
+        toast('Change password opened', 'info');
+        break;
+      }
+      case 'cancel-password-change': {
+        state.passwordChangeOpen = false;
+        state.passwordForm = blankPasswordForm();
+        clearActionErrors();
+        render();
+        toast('Password change cancelled', 'info');
         break;
       }
       case 'assign-serial': {
@@ -1505,7 +1822,7 @@ async function handleAction(action, button, event) {
         break;
       }
       case 'export-serials': {
-        downloadText('steamlab-serials.csv', exportSerialsCsv(db), 'text/csv;charset=utf-8');
+        downloadText('steamlab-serials.csv', exportSerialsCsv(db, state.session), 'text/csv;charset=utf-8');
         toast('Serial CSV exported', 'success');
         break;
       }
@@ -1628,20 +1945,21 @@ async function handleConfirmYes() {
     const result = cancelRequest(db, confirmation.id, state.session, 'Cancelled before printing.');
     state.confirm = null;
     handleOperationResult(result, 'Request cancelled', 'Request could not be cancelled', 'Reserved time was released and the scheduler re-ran.');
-  } else if (confirmation.type === 'delete-account') {
-    const result = deleteAccount(confirmation.id, state.session);
+  } else if (confirmation.type === 'delete-serial') {
+    const result = deleteSerialEntry(confirmation.id, state.session);
     state.confirm = null;
     if (!result.ok) {
       state.errors.general = Object.values(result.errors).join(' ');
       render();
-      toast('Account not deleted', 'error', state.errors.general);
+      toast('Serial not deleted', 'error', state.errors.general);
     } else {
-      if (state.editAccountId === confirmation.id) {
-        state.editAccountId = null;
-        state.accountForm = makeAccountForm();
+      if (state.serialEditId === confirmation.id) {
+        state.serialFormOpen = false;
+        state.serialEditId = null;
+        state.serialForm = makeSerialForm(state.serialMode);
       }
       render();
-      toast('Account deleted', 'success', 'Existing requests were preserved.');
+      toast('Serial record deleted', 'success', 'The linked login account was removed. Existing requests were preserved.');
     }
   } else if (confirmation.type === 'reset') {
     await resetFactoryData(state.session);
@@ -1652,8 +1970,9 @@ async function handleConfirmYes() {
     state.confirm = null;
     state.draft = makeDraft();
     state.lastSubmission = null;
-    state.editAccountId = null;
-    state.accountForm = makeAccountForm();
+    state.passwordChangeOpen = false;
+    state.passwordForm = blankPasswordForm();
+    resetSerialWorkspace('student');
     state.settingsForm = makeSettingsForm(getDb().settings);
     clearActionErrors();
     render();
@@ -1682,6 +2001,8 @@ async function handleSubmit(event) {
         state.session = result.account;
         state.view = defaultView(result.account.role);
         state.loginRole = null;
+        state.passwordChangeOpen = false;
+        state.passwordForm = blankPasswordForm();
         clearActionErrors();
         render();
         toast(`Welcome, ${result.account.name}`, 'success', `${result.account.role} workspace opened`);
@@ -1700,32 +2021,45 @@ async function handleSubmit(event) {
         render();
         toast('Request submitted', 'success', `${result.request.code} saved with its uploaded file.`);
       }
-    } else if (kind === 'accounts') {
-      const payload = readAccountForm(form);
-      const wasEditing = Boolean(state.editAccountId);
-      const result = wasEditing ? updateAccount(state.editAccountId, payload, state.session) : createAccount(payload, state.session);
+    } else if (kind === 'serial-record') {
+      const payload = readSerialForm(form);
+      const wasEditing = Boolean(state.serialEditId);
+      const result = wasEditing
+        ? updateSerialEntry(state.serialEditId, payload, state.serialMode, state.session)
+        : createSerialEntry(payload, state.serialMode, state.session);
       if (!result.ok) {
         state.errors = result.errors;
         render();
-        toast('Account needs attention', 'error', Object.values(result.errors)[0] || 'Check the form.');
+        toast('Serial record needs attention', 'error', Object.values(result.errors)[0] || 'Check the form.');
       } else {
-        state.editAccountId = null;
-        state.accountForm = makeAccountForm();
+        state.serialFormOpen = false;
+        state.serialEditId = null;
+        state.serialForm = makeSerialForm(state.serialMode);
         clearActionErrors();
         render();
-        toast(wasEditing ? 'Account updated' : 'Account created', 'success', `${result.account.loginId} saved.`);
+        toast(wasEditing ? 'Serial record updated' : 'Serial record created', 'success', `${result.account.loginId} saved and linked.`);
       }
-    } else if (kind === 'generate-serials') {
-      const data = new FormData(form);
-      const result = generateSerials({ role: String(data.get('role') || ''), count: Number(data.get('count')) }, state.session);
+    } else if (kind === 'bulk-serials') {
+      const rows = readBulkRows(form);
+      const result = bulkCreateSerialRows(rows, state.serialMode, state.session);
+      state.bulkReport = result;
+      if (result.successful) state.bulkSerialRows = makeBulkSerialRows(state.serialMode, 2);
+      clearActionErrors();
+      render();
+      toast('Bulk generation complete', result.successful ? 'success' : 'error', `${result.successful} successful, ${result.unsuccessful} unsuccessful.`);
+    } else if (kind === 'change-password') {
+      const payload = readPasswordForm(form);
+      const result = changeOwnPassword(payload, state.session);
       if (!result.ok) {
         state.errors = result.errors;
         render();
-        toast('Serial batch needs attention', 'error', Object.values(result.errors)[0] || 'Check the form.');
+        toast('Password change needs attention', 'error', Object.values(result.errors)[0] || 'Check the form.');
       } else {
+        state.passwordChangeOpen = false;
+        state.passwordForm = blankPasswordForm();
         clearActionErrors();
         render();
-        toast(`${result.codes.length} serials generated`, 'success', result.codes.join(', '));
+        toast('Password changed', 'success', 'Use the new password for future sign-ins.');
       }
     } else if (kind === 'settings') {
       readSettingsForm(form);
@@ -1765,8 +2099,12 @@ function handleInput(event) {
       password: String(data.get('password') || '')
     };
   }
-  const accountForm = target.closest('form[data-form="accounts"]');
-  if (accountForm) readAccountForm(accountForm);
+  const serialForm = target.closest('form[data-form="serial-record"]');
+  if (serialForm) readSerialForm(serialForm);
+  const bulkForm = target.closest('form[data-form="bulk-serials"]');
+  if (bulkForm) readBulkRows(bulkForm);
+  const passwordForm = target.closest('form[data-form="change-password"]');
+  if (passwordForm) readPasswordForm(passwordForm);
   const settingsForm = target.closest('form[data-form="settings"]');
   if (settingsForm) readSettingsForm(settingsForm);
 }
@@ -1791,6 +2129,17 @@ async function handleChange(event) {
     toast(file ? 'Backup file selected' : 'Backup selection cleared', 'info', file ? file.name : '');
     return;
   }
+  if (target.matches('[data-field="excel-file"]')) {
+    const file = target.files && target.files[0] ? target.files[0] : null;
+    state.excelFile = file;
+    state.excelFileName = file ? file.name : '';
+    state.excelPreview = null;
+    state.excelReport = null;
+    delete state.errors.excel;
+    render();
+    toast(file ? 'Excel file selected' : 'Excel selection cleared', 'info', file ? file.name : '');
+    return;
+  }
   if (target.matches('[data-filter]')) {
     state.filters[target.dataset.filter] = target.value;
     refreshTableOnly();
@@ -1801,16 +2150,19 @@ async function handleChange(event) {
     await refreshDraftEstimate();
     return;
   }
-  const accountForm = target.closest('form[data-form="accounts"]');
-  if (accountForm) {
-    const roleChanged = target.name === 'role';
-    readAccountForm(accountForm);
-    if (roleChanged) {
-      state.accountForm.serial = '';
-      if (state.accountForm.role !== 'student') state.accountForm.className = '';
-      render();
-      toast(`${state.accountForm.role} account fields updated`, 'info');
-    }
+  const serialForm = target.closest('form[data-form="serial-record"]');
+  if (serialForm) {
+    readSerialForm(serialForm);
+    return;
+  }
+  const bulkForm = target.closest('form[data-form="bulk-serials"]');
+  if (bulkForm) {
+    readBulkRows(bulkForm);
+    return;
+  }
+  const passwordForm = target.closest('form[data-form="change-password"]');
+  if (passwordForm) {
+    readPasswordForm(passwordForm);
     return;
   }
   const settingsForm = target.closest('form[data-form="settings"]');

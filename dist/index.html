@@ -145,7 +145,30 @@ svg { display: block; flex-shrink: 0; }
   transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 .role-button:hover { transform: translateY(-4px); border-color: var(--accent); box-shadow: 0 18px 34px rgba(37, 99, 235, 0.14); }
-.role-icon { width: 54px; height: 54px; border-radius: 16px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
+.role-button > .role-icon {
+  flex: 0 0 56px;
+  width: 56px;
+  height: 56px;
+  margin: 0;
+  padding: 0;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  line-height: 0;
+  text-align: center;
+  color: var(--accent);
+  background: var(--accent-soft);
+  box-sizing: border-box;
+}
+.role-button > .role-icon svg {
+  display: block;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  margin: 0;
+}
 .role-button strong { display: block; font-size: 1.45rem; letter-spacing: -0.02em; }
 .role-button span { display: block; color: var(--muted); font-size: 0.94rem; margin-top: 4px; }
 .role-arrow { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); font-weight: 750; font-size: 0.92rem; }
@@ -472,7 +495,8 @@ td small { display: block; }
   .landing-card { padding: 24px 18px; border-radius: 20px; }
   .role-grid { grid-template-columns: 1fr; }
   .role-button { min-height: 132px; padding: 18px; }
-  .role-icon { width: 46px; height: 46px; }
+  .role-button > .role-icon { flex-basis: 50px; width: 50px; height: 50px; }
+  .role-button > .role-icon svg { width: 28px; height: 28px; }
   .auth-panel { padding: 18px 12px; }
   .auth-card { padding: 22px 18px; }
   .form-grid, .detail-list, .estimate-details, .grid-4, .report-status-grid, .serial-grid { grid-template-columns: 1fr; }
@@ -488,6 +512,68 @@ td small { display: block; }
   .sidebar-footer { grid-template-columns: 1fr; }
   .logout-button { width: 100%; }
   .board { min-width: 1040px; }
+}
+
+/* Serial management uses the existing card, button, table, and badge language. */
+.serial-mode-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 20px; }
+.serial-mode-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 106px;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+.serial-mode-card:hover { transform: translateY(-2px); border-color: var(--accent); box-shadow: 0 12px 26px rgba(37, 99, 235, 0.12); }
+.serial-mode-card:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.28); outline-offset: 2px; }
+.serial-mode-card.selected { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.serial-mode-icon {
+  width: 54px;
+  height: 54px;
+  flex: 0 0 54px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.serial-mode-icon svg { width: 30px; height: 30px; display: block; }
+.serial-mode-card strong { display: block; font-size: 1.14rem; letter-spacing: -0.01em; }
+.serial-mode-card small { display: block; color: var(--muted); font-size: 0.9rem; margin-top: 4px; line-height: 1.4; }
+
+.bulk-serial-head,
+.bulk-serial-row { display: grid; align-items: center; gap: 8px; }
+.bulk-serial-head.student { grid-template-columns: 32px minmax(130px, 1.35fr) minmax(90px, 0.9fr) minmax(115px, 1.05fr) repeat(2, minmax(120px, 1fr)) 42px; }
+.bulk-serial-row.student { grid-template-columns: 32px minmax(130px, 1.35fr) minmax(90px, 0.9fr) minmax(115px, 1.05fr) repeat(2, minmax(120px, 1fr)) 42px; }
+.bulk-serial-head.teacher { grid-template-columns: 32px minmax(150px, 1.35fr) minmax(140px, 1.1fr) repeat(2, minmax(120px, 1fr)) 42px; }
+.bulk-serial-row.teacher { grid-template-columns: 32px minmax(150px, 1.35fr) minmax(140px, 1.1fr) repeat(2, minmax(120px, 1fr)) 42px; }
+.bulk-serial-head { color: var(--muted); font-size: 0.78rem; font-weight: 750; text-transform: uppercase; letter-spacing: 0.04em; padding: 0 8px 4px; }
+.bulk-serial-row { padding: 8px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.bulk-serial-row input { width: 100%; min-width: 0; }
+.bulk-row-number { width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center; background: var(--bg); color: var(--muted); font-weight: 750; }
+.bulk-serial-row .btn.small.danger { width: 42px; min-width: 42px; padding: 0; justify-content: center; }
+
+@media (max-width: 900px) {
+  .serial-mode-grid { grid-template-columns: 1fr; }
+  .bulk-serial-head { display: none; }
+  .bulk-serial-row.student, .bulk-serial-row.teacher { grid-template-columns: 1fr 1fr; }
+  .bulk-serial-row .bulk-row-number { grid-column: 1 / -1; width: 100%; height: auto; padding: 4px; border-radius: 8px; }
+  .bulk-serial-row .btn.small.danger { grid-column: 1 / -1; width: 100%; }
+}
+@media (max-width: 560px) {
+  .serial-mode-card { padding: 16px; gap: 12px; }
+  .serial-mode-icon { width: 48px; height: 48px; flex-basis: 48px; border-radius: 14px; }
+  .serial-mode-icon svg { width: 27px; height: 27px; }
+  .bulk-serial-row.student, .bulk-serial-row.teacher { grid-template-columns: 1fr; }
 }
 </style>
 </head>
@@ -1801,6 +1887,3075 @@ __SL.meshMetrics = meshMetrics;
 __SL.estimateFromFile = estimateFromFile;
 })();
 
+/* src/fflate.js */
+(function () {
+'use strict';
+
+/*
+fflate — MIT License
+ * MIT License
+ *
+ * Copyright (c) 2026 Arjun Barrett
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+// DEFLATE is a complex format; to read this code, you should probably check the RFC first:
+// You may also wish to take a look at the guide I made about this program:
+// Some of the following code is similar to that of UZIP.js:
+// However, the vast majority of the codebase has diverged from UZIP.js to increase performance and reduce bundle size.
+// Sometimes 0 will appear where -1 would be more appropriate. This is because using a uint
+// is better for memory in most engines (I *think*).
+var ch2 = {};
+var wk = (function (c, id, msg, transfer, cb) {
+    var w = new Worker(ch2[id] || (ch2[id] = URL.createObjectURL(new Blob([
+        c + ';addEventListener("error",function(e){e=e.error;postMessage({$e$:[e.message,e.code,e.stack]})})'
+    ], { type: 'text/javascript' }))));
+    w.onmessage = function (e) {
+        var d = e.data, ed = d.$e$;
+        if (ed) {
+            var err = new Error(ed[0]);
+            err['code'] = ed[1];
+            err.stack = ed[2];
+            cb(err, null);
+        }
+        else
+            cb(null, d);
+    };
+    w.postMessage(msg, transfer);
+    return w;
+});
+
+// aliases for shorter compressed code (most minifers don't do this)
+var u8 = Uint8Array, u16 = Uint16Array, i32 = Int32Array;
+// fixed length extra bits
+var fleb = new u8([0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0, /* unused */ 0, 0, /* impossible */ 0]);
+// fixed distance extra bits
+var fdeb = new u8([0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13, /* unused */ 0, 0]);
+// code length index map
+var clim = new u8([16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]);
+// get base, reverse index map from extra bits
+var freb = function (eb, start) {
+    var b = new u16(31);
+    for (var i = 0; i < 31; ++i) {
+        b[i] = start += 1 << eb[i - 1];
+    }
+    // numbers here are at max 18 bits
+    var r = new i32(b[30]);
+    for (var i = 1; i < 30; ++i) {
+        for (var j = b[i]; j < b[i + 1]; ++j) {
+            r[j] = ((j - b[i]) << 5) | i;
+        }
+    }
+    return { b: b, r: r };
+};
+var _a = freb(fleb, 2), fl = _a.b, revfl = _a.r;
+// we can ignore the fact that the other numbers are wrong; they never happen anyway
+fl[28] = 258, revfl[258] = 28;
+var _b = freb(fdeb, 0), fd = _b.b, revfd = _b.r;
+// map of value to reverse (assuming 16 bits)
+var rev = new u16(32768);
+for (var i = 0; i < 32768; ++i) {
+    // reverse table algorithm from SO
+    var x = ((i & 0xAAAA) >> 1) | ((i & 0x5555) << 1);
+    x = ((x & 0xCCCC) >> 2) | ((x & 0x3333) << 2);
+    x = ((x & 0xF0F0) >> 4) | ((x & 0x0F0F) << 4);
+    rev[i] = (((x & 0xFF00) >> 8) | ((x & 0x00FF) << 8)) >> 1;
+}
+// create huffman tree from u8 "map": index -> code length for code index
+// mb (max bits) must be at most 15
+var hMap = (function (cd, mb, r) {
+    var s = cd.length;
+    // index
+    var i = 0;
+    // u16 "map": index -> # of codes with bit length = index
+    var l = new u16(mb);
+    // length of cd must be 288 (total # of codes)
+    for (; i < s; ++i) {
+        if (cd[i])
+            ++l[cd[i] - 1];
+    }
+    // u16 "map": index -> minimum code for bit length = index
+    var le = new u16(mb);
+    for (i = 1; i < mb; ++i) {
+        le[i] = (le[i - 1] + l[i - 1]) << 1;
+    }
+    var co;
+    if (r) {
+        // u16 "map": index -> number of actual bits, symbol for code
+        co = new u16(1 << mb);
+        // bits to remove for reverser
+        var rvb = 15 - mb;
+        for (i = 0; i < s; ++i) {
+            // ignore 0 lengths
+            if (cd[i]) {
+                // num encoding both symbol and bits read
+                var sv = (i << 4) | cd[i];
+                // free bits
+                var r_1 = mb - cd[i];
+                // start value
+                var v = le[cd[i] - 1]++ << r_1;
+                // m is end value
+                for (var m = v | ((1 << r_1) - 1); v <= m; ++v) {
+                    // every 16 bit value starting with the code yields the same result
+                    co[rev[v] >> rvb] = sv;
+                }
+            }
+        }
+    }
+    else {
+        co = new u16(s);
+        for (i = 0; i < s; ++i) {
+            if (cd[i]) {
+                co[i] = rev[le[cd[i] - 1]++] >> (15 - cd[i]);
+            }
+        }
+    }
+    return co;
+});
+// fixed length tree
+var flt = new u8(288);
+for (var i = 0; i < 144; ++i)
+    flt[i] = 8;
+for (var i = 144; i < 256; ++i)
+    flt[i] = 9;
+for (var i = 256; i < 280; ++i)
+    flt[i] = 7;
+for (var i = 280; i < 288; ++i)
+    flt[i] = 8;
+// fixed distance tree
+var fdt = new u8(32);
+for (var i = 0; i < 32; ++i)
+    fdt[i] = 5;
+// fixed length map
+var flm = /*#__PURE__*/ hMap(flt, 9, 0), flrm = /*#__PURE__*/ hMap(flt, 9, 1);
+// fixed distance map
+var fdm = /*#__PURE__*/ hMap(fdt, 5, 0), fdrm = /*#__PURE__*/ hMap(fdt, 5, 1);
+// find max of array
+var max = function (a) {
+    var m = a[0];
+    for (var i = 1; i < a.length; ++i) {
+        if (a[i] > m)
+            m = a[i];
+    }
+    return m;
+};
+// read d, starting at bit p and mask with m
+var bits = function (d, p, m) {
+    var o = (p / 8) | 0;
+    return ((d[o] | (d[o + 1] << 8)) >> (p & 7)) & m;
+};
+// read d, starting at bit p continuing for at least 16 bits
+var bits16 = function (d, p) {
+    var o = (p / 8) | 0;
+    return ((d[o] | (d[o + 1] << 8) | (d[o + 2] << 16)) >> (p & 7));
+};
+// get end of byte
+var shft = function (p) { return ((p + 7) / 8) | 0; };
+// typed array slice - allows garbage collector to free original reference,
+// while being more compatible than .slice
+var slc = function (v, s, e) {
+    if (s == null || s < 0)
+        s = 0;
+    if (e == null || e > v.length)
+        e = v.length;
+    // can't use .constructor in case user-supplied
+    return new u8(v.subarray(s, e));
+};
+/**
+ * Codes for errors generated within this library
+ */
+var FlateErrorCode = {
+    UnexpectedEOF: 0,
+    InvalidBlockType: 1,
+    InvalidLengthLiteral: 2,
+    InvalidDistance: 3,
+    StreamFinished: 4,
+    NoStreamHandler: 5,
+    InvalidHeader: 6,
+    NoCallback: 7,
+    InvalidUTF8: 8,
+    ExtraFieldTooLong: 9,
+    InvalidDate: 10,
+    FilenameTooLong: 11,
+    StreamFinishing: 12,
+    InvalidZipData: 13,
+    UnknownCompressionMethod: 14
+};
+// error codes
+var ec = [
+    'unexpected EOF',
+    'invalid block type',
+    'invalid length/literal',
+    'invalid distance',
+    'stream finished',
+    'no stream handler',
+    , // determined by compression function
+    'no callback',
+    'invalid UTF-8 data',
+    'extra field too long',
+    'date not in range 1980-2099',
+    'filename too long',
+    'stream finishing',
+    'invalid zip data'
+    // determined by unknown compression method
+];
+;
+var err = function (ind, msg, nt) {
+    var e = new Error(msg || ec[ind]);
+    e.code = ind;
+    if (Error.captureStackTrace)
+        Error.captureStackTrace(e, err);
+    if (!nt)
+        throw e;
+    return e;
+};
+// expands raw DEFLATE data
+var inflt = function (dat, st, buf, dict) {
+    // source length       dict length
+    var sl = dat.length, dl = dict ? dict.length : 0;
+    if (!sl || st.f && !st.l)
+        return buf || new u8(0);
+    var noBuf = !buf;
+    // have to estimate size
+    var resize = noBuf || st.i != 2;
+    // no state
+    var noSt = st.i;
+    // Assumes roughly 33% compression ratio average
+    if (noBuf)
+        buf = new u8(sl * 3);
+    // ensure buffer can fit at least l elements
+    var cbuf = function (l) {
+        var bl = buf.length;
+        // need to increase size to fit
+        if (l > bl) {
+            // Double or set to necessary, whichever is greater
+            var nbuf = new u8(Math.max(bl * 2, l));
+            nbuf.set(buf);
+            buf = nbuf;
+        }
+    };
+    //  last chunk         bitpos           bytes
+    var final = st.f || 0, pos = st.p || 0, bt = st.b || 0, lm = st.l, dm = st.d, lbt = st.m, dbt = st.n;
+    // total bits
+    var tbts = sl * 8;
+    do {
+        if (!lm) {
+            // BFINAL - this is only 1 when last chunk is next
+            final = bits(dat, pos, 1);
+            // type: 0 = no compression, 1 = fixed huffman, 2 = dynamic huffman
+            var type = bits(dat, pos + 1, 3);
+            pos += 3;
+            if (!type) {
+                // go to end of byte boundary
+                var s = shft(pos) + 4, l = dat[s - 4] | (dat[s - 3] << 8), t = s + l;
+                if (t > sl) {
+                    if (noSt)
+                        err(0);
+                    break;
+                }
+                // ensure size
+                if (resize)
+                    cbuf(bt + l);
+                // Copy over uncompressed data
+                buf.set(dat.subarray(s, t), bt);
+                // Get new bitpos, update byte count
+                st.b = bt += l, st.p = pos = t * 8, st.f = final;
+                continue;
+            }
+            else if (type == 1)
+                lm = flrm, dm = fdrm, lbt = 9, dbt = 5;
+            else if (type == 2) {
+                //  literal                            lengths
+                var hLit = bits(dat, pos, 31) + 257, hcLen = bits(dat, pos + 10, 15) + 4;
+                var tl = hLit + bits(dat, pos + 5, 31) + 1;
+                pos += 14;
+                // length+distance tree
+                var ldt = new u8(tl);
+                // code length tree
+                var clt = new u8(19);
+                for (var i = 0; i < hcLen; ++i) {
+                    // use index map to get real code
+                    clt[clim[i]] = bits(dat, pos + i * 3, 7);
+                }
+                pos += hcLen * 3;
+                // code lengths bits
+                var clb = max(clt), clbmsk = (1 << clb) - 1;
+                // code lengths map
+                var clm = hMap(clt, clb, 1);
+                for (var i = 0; i < tl;) {
+                    var r = clm[bits(dat, pos, clbmsk)];
+                    // bits read
+                    pos += r & 15;
+                    // symbol
+                    var s = r >> 4;
+                    // code length to copy
+                    if (s < 16) {
+                        ldt[i++] = s;
+                    }
+                    else {
+                        //  copy   count
+                        var c = 0, n = 0;
+                        if (s == 16)
+                            n = 3 + bits(dat, pos, 3), pos += 2, c = ldt[i - 1];
+                        else if (s == 17)
+                            n = 3 + bits(dat, pos, 7), pos += 3;
+                        else if (s == 18)
+                            n = 11 + bits(dat, pos, 127), pos += 7;
+                        while (n--)
+                            ldt[i++] = c;
+                    }
+                }
+                //    length tree                 distance tree
+                var lt = ldt.subarray(0, hLit), dt = ldt.subarray(hLit);
+                // max length bits
+                lbt = max(lt);
+                // max dist bits
+                dbt = max(dt);
+                lm = hMap(lt, lbt, 1);
+                dm = hMap(dt, dbt, 1);
+            }
+            else
+                err(1);
+            if (pos > tbts) {
+                if (noSt)
+                    err(0);
+                break;
+            }
+        }
+        // Make sure the buffer can hold this + the largest possible addition
+        // Maximum chunk size (practically, theoretically infinite) is 2^17
+        if (resize)
+            cbuf(bt + 131072);
+        var lms = (1 << lbt) - 1, dms = (1 << dbt) - 1;
+        var lpos = pos;
+        for (;; lpos = pos) {
+            // bits read, code
+            var c = lm[bits16(dat, pos) & lms], sym = c >> 4;
+            pos += c & 15;
+            if (pos > tbts) {
+                if (noSt)
+                    err(0);
+                break;
+            }
+            if (!c)
+                err(2);
+            if (sym < 256)
+                buf[bt++] = sym;
+            else if (sym == 256) {
+                lpos = pos, lm = null;
+                break;
+            }
+            else {
+                var add = sym - 254;
+                // no extra bits needed if less
+                if (sym > 264) {
+                    // index
+                    var i = sym - 257, b = fleb[i];
+                    add = bits(dat, pos, (1 << b) - 1) + fl[i];
+                    pos += b;
+                }
+                // dist
+                var d = dm[bits16(dat, pos) & dms], dsym = d >> 4;
+                if (!d)
+                    err(3);
+                pos += d & 15;
+                var dt = fd[dsym];
+                if (dsym > 3) {
+                    var b = fdeb[dsym];
+                    dt += bits16(dat, pos) & (1 << b) - 1, pos += b;
+                }
+                if (pos > tbts) {
+                    if (noSt)
+                        err(0);
+                    break;
+                }
+                if (resize)
+                    cbuf(bt + 131072);
+                var end = bt + add;
+                if (bt < dt) {
+                    var shift = dl - dt, dend = Math.min(dt, end);
+                    if (shift + bt < 0)
+                        err(3);
+                    for (; bt < dend; ++bt)
+                        buf[bt] = dict[shift + bt];
+                }
+                for (; bt < end; ++bt)
+                    buf[bt] = buf[bt - dt];
+            }
+        }
+        st.l = lm, st.p = lpos, st.b = bt, st.f = final;
+        if (lm)
+            final = 1, st.m = lbt, st.d = dm, st.n = dbt;
+    } while (!final);
+    // don't reallocate for streams or user buffers
+    return bt != buf.length && noBuf ? slc(buf, 0, bt) : buf.subarray(0, bt);
+};
+// starting at p, write the minimum number of bits that can hold v to d
+var wbits = function (d, p, v) {
+    v <<= p & 7;
+    var o = (p / 8) | 0;
+    d[o] |= v;
+    d[o + 1] |= v >> 8;
+};
+// starting at p, write the minimum number of bits (>8) that can hold v to d
+var wbits16 = function (d, p, v) {
+    v <<= p & 7;
+    var o = (p / 8) | 0;
+    d[o] |= v;
+    d[o + 1] |= v >> 8;
+    d[o + 2] |= v >> 16;
+};
+// creates code lengths from a frequency table
+var hTree = function (d, mb) {
+    // Need extra info to make a tree
+    var t = [];
+    for (var i = 0; i < d.length; ++i) {
+        if (d[i])
+            t.push({ s: i, f: d[i] });
+    }
+    var s = t.length;
+    var t2 = t.slice();
+    if (!s)
+        return { t: et, l: 0 };
+    if (s == 1) {
+        var v = new u8(t[0].s + 1);
+        v[t[0].s] = 1;
+        return { t: v, l: 1 };
+    }
+    t.sort(function (a, b) { return a.f - b.f; });
+    // after i2 reaches last ind, will be stopped
+    // freq must be greater than largest possible number of symbols
+    t.push({ s: -1, f: 25001 });
+    var l = t[0], r = t[1], i0 = 0, i1 = 1, i2 = 2;
+    t[0] = { s: -1, f: l.f + r.f, l: l, r: r };
+    // efficient algorithm from UZIP.js
+    // i0 is lookbehind, i2 is lookahead - after processing two low-freq
+    // symbols that combined have high freq, will start processing i2 (high-freq,
+    // non-composite) symbols instead
+    while (i1 != s - 1) {
+        l = t[t[i0].f < t[i2].f ? i0++ : i2++];
+        r = t[i0 != i1 && t[i0].f < t[i2].f ? i0++ : i2++];
+        t[i1++] = { s: -1, f: l.f + r.f, l: l, r: r };
+    }
+    var maxSym = t2[0].s;
+    for (var i = 1; i < s; ++i) {
+        if (t2[i].s > maxSym)
+            maxSym = t2[i].s;
+    }
+    // code lengths
+    var tr = new u16(maxSym + 1);
+    // max bits in tree
+    var mbt = ln(t[i1 - 1], tr, 0);
+    if (mbt > mb) {
+        // more algorithms from UZIP.js
+        //  ind    debt
+        var i = 0, dt = 0;
+        //    left            cost
+        var lft = mbt - mb, cst = 1 << lft;
+        t2.sort(function (a, b) { return tr[b.s] - tr[a.s] || a.f - b.f; });
+        for (; i < s; ++i) {
+            var i2_1 = t2[i].s;
+            if (tr[i2_1] > mb) {
+                dt += cst - (1 << (mbt - tr[i2_1]));
+                tr[i2_1] = mb;
+            }
+            else
+                break;
+        }
+        dt >>= lft;
+        while (dt > 0) {
+            var i2_2 = t2[i].s;
+            if (tr[i2_2] < mb)
+                dt -= 1 << (mb - tr[i2_2]++ - 1);
+            else
+                ++i;
+        }
+        for (; i >= 0 && dt; --i) {
+            var i2_3 = t2[i].s;
+            if (tr[i2_3] == mb) {
+                --tr[i2_3];
+                ++dt;
+            }
+        }
+        mbt = mb;
+    }
+    return { t: new u8(tr), l: mbt };
+};
+// get the max length and assign length codes
+var ln = function (n, l, d) {
+    return n.s == -1
+        ? Math.max(ln(n.l, l, d + 1), ln(n.r, l, d + 1))
+        : (l[n.s] = d);
+};
+// length codes generation
+var lc = function (c) {
+    var s = c.length;
+    // Note that the semicolon was intentional
+    while (s && !c[--s])
+        ;
+    var cl = new u16(++s);
+    //  ind      num         streak
+    var cli = 0, cln = c[0], cls = 1;
+    var w = function (v) { cl[cli++] = v; };
+    for (var i = 1; i <= s; ++i) {
+        if (c[i] == cln && i != s)
+            ++cls;
+        else {
+            if (!cln && cls > 2) {
+                for (; cls > 138; cls -= 138)
+                    w(32754);
+                if (cls > 2) {
+                    w(cls > 10 ? ((cls - 11) << 5) | 28690 : ((cls - 3) << 5) | 12305);
+                    cls = 0;
+                }
+            }
+            else if (cls > 3) {
+                w(cln), --cls;
+                for (; cls > 6; cls -= 6)
+                    w(8304);
+                if (cls > 2)
+                    w(((cls - 3) << 5) | 8208), cls = 0;
+            }
+            while (cls--)
+                w(cln);
+            cls = 1;
+            cln = c[i];
+        }
+    }
+    return { c: cl.subarray(0, cli), n: s };
+};
+// calculate the length of output from tree, code lengths
+var clen = function (cf, cl) {
+    var l = 0;
+    for (var i = 0; i < cl.length; ++i)
+        l += cf[i] * cl[i];
+    return l;
+};
+// writes a fixed block
+// returns the new bit pos
+var wfblk = function (out, pos, dat) {
+    // no need to write 00 as type: TypedArray defaults to 0
+    var s = dat.length;
+    var o = shft(pos + 2);
+    out[o] = s & 255;
+    out[o + 1] = s >> 8;
+    out[o + 2] = out[o] ^ 255;
+    out[o + 3] = out[o + 1] ^ 255;
+    for (var i = 0; i < s; ++i)
+        out[o + i + 4] = dat[i];
+    return (o + 4 + s) * 8;
+};
+// writes a block
+var wblk = function (dat, out, final, syms, lf, df, eb, li, bs, bl, p) {
+    wbits(out, p++, final);
+    ++lf[256];
+    var _a = hTree(lf, 15), dlt = _a.t, mlb = _a.l;
+    var _b = hTree(df, 15), ddt = _b.t, mdb = _b.l;
+    var _c = lc(dlt), lclt = _c.c, nlc = _c.n;
+    var _d = lc(ddt), lcdt = _d.c, ndc = _d.n;
+    var lcfreq = new u16(19);
+    for (var i = 0; i < lclt.length; ++i)
+        ++lcfreq[lclt[i] & 31];
+    for (var i = 0; i < lcdt.length; ++i)
+        ++lcfreq[lcdt[i] & 31];
+    var _e = hTree(lcfreq, 7), lct = _e.t, mlcb = _e.l;
+    var nlcc = 19;
+    for (; nlcc > 4 && !lct[clim[nlcc - 1]]; --nlcc)
+        ;
+    var flen = (bl + 5) << 3;
+    var ftlen = clen(lf, flt) + clen(df, fdt) + eb;
+    var dtlen = clen(lf, dlt) + clen(df, ddt) + eb + 14 + 3 * nlcc + clen(lcfreq, lct) + 2 * lcfreq[16] + 3 * lcfreq[17] + 7 * lcfreq[18];
+    if (bs >= 0 && flen <= ftlen && flen <= dtlen)
+        return wfblk(out, p, dat.subarray(bs, bs + bl));
+    var lm, ll, dm, dl;
+    wbits(out, p, 1 + (dtlen < ftlen)), p += 2;
+    if (dtlen < ftlen) {
+        lm = hMap(dlt, mlb, 0), ll = dlt, dm = hMap(ddt, mdb, 0), dl = ddt;
+        var llm = hMap(lct, mlcb, 0);
+        wbits(out, p, nlc - 257);
+        wbits(out, p + 5, ndc - 1);
+        wbits(out, p + 10, nlcc - 4);
+        p += 14;
+        for (var i = 0; i < nlcc; ++i)
+            wbits(out, p + 3 * i, lct[clim[i]]);
+        p += 3 * nlcc;
+        var lcts = [lclt, lcdt];
+        for (var it = 0; it < 2; ++it) {
+            var clct = lcts[it];
+            for (var i = 0; i < clct.length; ++i) {
+                var len = clct[i] & 31;
+                wbits(out, p, llm[len]), p += lct[len];
+                if (len > 15)
+                    wbits(out, p, (clct[i] >> 5) & 127), p += clct[i] >> 12;
+            }
+        }
+    }
+    else {
+        lm = flm, ll = flt, dm = fdm, dl = fdt;
+    }
+    for (var i = 0; i < li; ++i) {
+        var sym = syms[i];
+        if (sym > 255) {
+            var len = (sym >> 18) & 31;
+            wbits16(out, p, lm[len + 257]), p += ll[len + 257];
+            if (len > 7)
+                wbits(out, p, (sym >> 23) & 31), p += fleb[len];
+            var dst = sym & 31;
+            wbits16(out, p, dm[dst]), p += dl[dst];
+            if (dst > 3)
+                wbits16(out, p, (sym >> 5) & 8191), p += fdeb[dst];
+        }
+        else {
+            wbits16(out, p, lm[sym]), p += ll[sym];
+        }
+    }
+    wbits16(out, p, lm[256]);
+    return p + ll[256];
+};
+// deflate options (nice << 13) | chain
+var deo = /*#__PURE__*/ new i32([65540, 131080, 131088, 131104, 262176, 1048704, 1048832, 2114560, 2117632]);
+// empty
+var et = /*#__PURE__*/ new u8(0);
+// compresses data into a raw DEFLATE buffer
+var dflt = function (dat, lvl, plvl, pre, post, st) {
+    var s = st.z || dat.length;
+    var o = new u8(pre + s + 5 * (1 + Math.ceil(s / 7000)) + post);
+    // writing to this writes to the output buffer
+    var w = o.subarray(pre, o.length - post);
+    var lst = st.l;
+    var pos = (st.r || 0) & 7;
+    if (lvl) {
+        if (pos)
+            w[0] = st.r >> 3;
+        var opt = deo[lvl - 1];
+        var n = opt >> 13, c = opt & 8191;
+        var msk_1 = (1 << plvl) - 1;
+        //    prev 2-byte val map    curr 2-byte val map
+        var prev = st.p || new u16(32768), head = st.h || new u16(msk_1 + 1);
+        var bs1_1 = Math.ceil(plvl / 3), bs2_1 = 2 * bs1_1;
+        var hsh = function (i) { return (dat[i] ^ (dat[i + 1] << bs1_1) ^ (dat[i + 2] << bs2_1)) & msk_1; };
+        // 24576 is an arbitrary number of maximum symbols per block
+        // 424 buffer for last block
+        var syms = new i32(25000);
+        // length/literal freq   distance freq
+        var lf = new u16(288), df = new u16(32);
+        //  l/lcnt  exbits  index          l/lind  waitdx          blkpos
+        var lc_1 = 0, eb = 0, i = st.i || 0, li = 0, wi = st.w || 0, bs = 0;
+        for (; i + 2 < s; ++i) {
+            // hash value
+            var hv = hsh(i);
+            // index mod 32768    previous index mod
+            var imod = i & 32767, pimod = head[hv];
+            prev[imod] = pimod;
+            head[hv] = imod;
+            // We always should modify head and prev, but only add symbols if
+            // this data is not yet processed ("wait" for wait index)
+            if (wi <= i) {
+                // bytes remaining
+                var rem = s - i;
+                if ((lc_1 > 7000 || li > 24576) && (rem > 423 || !lst)) {
+                    pos = wblk(dat, w, 0, syms, lf, df, eb, li, bs, i - bs, pos);
+                    li = lc_1 = eb = 0, bs = i;
+                    for (var j = 0; j < 286; ++j)
+                        lf[j] = 0;
+                    for (var j = 0; j < 30; ++j)
+                        df[j] = 0;
+                }
+                //  len    dist   chain
+                var l = 2, d = 0, ch_1 = c, dif = imod - pimod & 32767;
+                if (rem > 2 && hv == hsh(i - dif)) {
+                    var maxn = Math.min(n, rem) - 1;
+                    var maxd = Math.min(32767, i);
+                    // max possible length
+                    // not capped at dif because decompressors implement "rolling" index population
+                    var ml = Math.min(258, rem);
+                    while (dif <= maxd && --ch_1 && imod != pimod) {
+                        if (dat[i + l] == dat[i + l - dif]) {
+                            var nl = 0;
+                            for (; nl < ml && dat[i + nl] == dat[i + nl - dif]; ++nl)
+                                ;
+                            if (nl > l) {
+                                l = nl, d = dif;
+                                // break out early when we reach "nice" (we are satisfied enough)
+                                if (nl > maxn)
+                                    break;
+                                // now, find the rarest 2-byte sequence within this
+                                // length of literals and search for that instead.
+                                // Much faster than just using the start
+                                var mmd = Math.min(dif, nl - 2);
+                                var md = 0;
+                                for (var j = 0; j < mmd; ++j) {
+                                    var ti = i - dif + j & 32767;
+                                    var pti = prev[ti];
+                                    var cd = ti - pti & 32767;
+                                    if (cd > md)
+                                        md = cd, pimod = ti;
+                                }
+                            }
+                        }
+                        // check the previous match
+                        imod = pimod, pimod = prev[imod];
+                        dif += imod - pimod & 32767;
+                    }
+                }
+                // d will be nonzero only when a match was found
+                if (d) {
+                    // store both dist and len data in one int32
+                    // Make sure this is recognized as a len/dist with 28th bit (2^28)
+                    syms[li++] = 268435456 | (revfl[l] << 18) | revfd[d];
+                    var lin = revfl[l] & 31, din = revfd[d] & 31;
+                    eb += fleb[lin] + fdeb[din];
+                    ++lf[257 + lin];
+                    ++df[din];
+                    wi = i + l;
+                    ++lc_1;
+                }
+                else {
+                    syms[li++] = dat[i];
+                    ++lf[dat[i]];
+                }
+            }
+        }
+        for (i = Math.max(i, wi); i < s; ++i) {
+            syms[li++] = dat[i];
+            ++lf[dat[i]];
+        }
+        pos = wblk(dat, w, lst, syms, lf, df, eb, li, bs, i - bs, pos);
+        if (!lst) {
+            st.r = (pos & 7) | w[(pos / 8) | 0] << 3;
+            // shft(pos) now 1 less if pos & 7 != 0
+            pos -= 7;
+            st.h = head, st.p = prev, st.i = i, st.w = wi;
+        }
+    }
+    else {
+        for (var i = st.w || 0; i < s + lst; i += 65535) {
+            // end
+            var e = i + 65535;
+            if (e >= s) {
+                // write final block
+                w[(pos / 8) | 0] = lst;
+                e = s;
+            }
+            pos = wfblk(w, pos + 1, dat.subarray(i, e));
+        }
+        st.i = s;
+    }
+    return slc(o, 0, pre + shft(pos) + post);
+};
+// CRC32 table
+var crct = /*#__PURE__*/ (function () {
+    var t = new Int32Array(256);
+    for (var i = 0; i < 256; ++i) {
+        var c = i, k = 9;
+        while (--k)
+            c = ((c & 1) && -306674912) ^ (c >>> 1);
+        t[i] = c;
+    }
+    return t;
+})();
+// CRC32
+var crc = function () {
+    var c = -1;
+    return {
+        p: function (d) {
+            // closures have awful performance
+            var cr = c;
+            for (var i = 0; i < d.length; ++i)
+                cr = crct[(cr & 255) ^ d[i]] ^ (cr >>> 8);
+            c = cr;
+        },
+        d: function () { return ~c; }
+    };
+};
+// Adler32
+var adler = function () {
+    var a = 1, b = 0;
+    return {
+        p: function (d) {
+            // closures have awful performance
+            var n = a, m = b;
+            var l = d.length | 0;
+            for (var i = 0; i != l;) {
+                var e = Math.min(i + 2655, l);
+                for (; i < e; ++i)
+                    m += n += d[i];
+                n = (n & 65535) + 15 * (n >> 16), m = (m & 65535) + 15 * (m >> 16);
+            }
+            a = n, b = m;
+        },
+        d: function () {
+            a %= 65521, b %= 65521;
+            return (a & 255) << 24 | (a & 0xFF00) << 8 | (b & 255) << 8 | (b >> 8);
+        }
+    };
+};
+;
+// deflate with opts
+var dopt = function (dat, opt, pre, post, st) {
+    if (!st) {
+        st = { l: 1 };
+        if (opt.dictionary) {
+            var dict = opt.dictionary.subarray(-32768);
+            var newDat = new u8(dict.length + dat.length);
+            newDat.set(dict);
+            newDat.set(dat, dict.length);
+            dat = newDat;
+            st.w = dict.length;
+        }
+    }
+    return dflt(dat, opt.level == null ? 6 : opt.level, opt.mem == null ? (st.l ? Math.ceil(Math.max(8, Math.min(13, Math.log(dat.length))) * 1.5) : 20) : (12 + opt.mem), pre, post, st);
+};
+// Walmart object spread
+var mrg = function (a, b) {
+    var o = {};
+    for (var k in a)
+        o[k] = a[k];
+    for (var k in b)
+        o[k] = b[k];
+    return o;
+};
+// worker clone
+// This is possibly the craziest part of the entire codebase, despite how simple it may seem.
+// The only parameter to this function is a closure that returns an array of variables outside of the function scope.
+// We're going to try to figure out the variable names used in the closure as strings because that is crucial for workerization.
+// We will return an object mapping of true variable name to value (basically, the current scope as a JS object).
+// The reason we can't just use the original variable names is minifiers mangling the toplevel scope.
+// This took me three weeks to figure out how to do.
+var wcln = function (fn, fnStr, td) {
+    var dt = fn();
+    var st = fn.toString();
+    var ks = st.slice(st.indexOf('[') + 1, st.lastIndexOf(']')).replace(/\s+/g, '').split(',');
+    for (var i = 0; i < dt.length; ++i) {
+        var v = dt[i], k = ks[i];
+        if (typeof v == 'function') {
+            fnStr += ';' + k + '=';
+            var st_1 = v.toString();
+            if (v.prototype) {
+                // for global objects
+                if (st_1.indexOf('[native code]') != -1) {
+                    var spInd = st_1.indexOf(' ', 8) + 1;
+                    fnStr += st_1.slice(spInd, st_1.indexOf('(', spInd));
+                }
+                else {
+                    fnStr += st_1;
+                    for (var t in v.prototype)
+                        fnStr += ';' + k + '.prototype.' + t + '=' + v.prototype[t].toString();
+                }
+            }
+            else
+                fnStr += st_1;
+        }
+        else
+            td[k] = v;
+    }
+    return fnStr;
+};
+var ch = [];
+// clone bufs
+var cbfs = function (v) {
+    var tl = [];
+    for (var k in v) {
+        if (v[k].buffer) {
+            tl.push((v[k] = new v[k].constructor(v[k])).buffer);
+        }
+    }
+    return tl;
+};
+// use a worker to execute code
+var wrkr = function (fns, init, id, cb) {
+    if (!ch[id]) {
+        var fnStr = '', td_1 = {}, m = fns.length - 1;
+        for (var i = 0; i < m; ++i)
+            fnStr = wcln(fns[i], fnStr, td_1);
+        ch[id] = { c: wcln(fns[m], fnStr, td_1), e: td_1 };
+    }
+    var td = mrg({}, ch[id].e);
+    return wk(ch[id].c + ';onmessage=function(e){for(var k in e.data)self[k]=e.data[k];onmessage=' + init.toString() + '}', id, td, cbfs(td), cb);
+};
+// base async inflate fn
+var bInflt = function () { return [u8, u16, i32, fleb, fdeb, clim, fl, fd, flrm, fdrm, rev, ec, hMap, max, bits, bits16, shft, slc, err, inflt, inflateSync, pbf, gopt]; };
+var bDflt = function () { return [u8, u16, i32, fleb, fdeb, clim, revfl, revfd, flm, flt, fdm, fdt, rev, deo, et, hMap, wbits, wbits16, hTree, ln, lc, clen, wfblk, wblk, shft, slc, dflt, dopt, deflateSync, pbf]; };
+// gzip extra
+var gze = function () { return [gzh, gzhl, wbytes, crc, crct]; };
+// gunzip extra
+var guze = function () { return [gzs, gzl]; };
+// zlib extra
+var zle = function () { return [zlh, wbytes, adler]; };
+// unzlib extra
+var zule = function () { return [zls]; };
+// post buf
+var pbf = function (msg) { return postMessage(msg, [msg.buffer]); };
+// get opts
+var gopt = function (o) { return o && {
+    out: o.size && new u8(o.size),
+    dictionary: o.dictionary
+}; };
+// async helper
+var cbify = function (dat, opts, fns, init, id, cb) {
+    var w = wrkr(fns, init, id, function (err, dat) {
+        w.terminate();
+        cb(err, dat);
+    });
+    w.postMessage([dat, opts], opts.consume ? [dat.buffer] : []);
+    return function () { w.terminate(); };
+};
+// auto stream
+var astrm = function (strm) {
+    strm.ondata = function (dat, final) { return postMessage([dat, final], [dat.buffer]); };
+    return function (ev) {
+        if (ev.data[0]) {
+            strm.push(ev.data[0], ev.data[1]);
+            postMessage([ev.data[0].length]);
+        }
+        else
+            strm.flush(ev.data[1]);
+    };
+};
+// async stream attach
+var astrmify = function (fns, strm, opts, init, id, flush, ext) {
+    var t;
+    var w = wrkr(fns, init, id, function (err, dat) {
+        if (err)
+            w.terminate(), strm.ondata.call(strm, err);
+        else if (!Array.isArray(dat))
+            ext(dat);
+        else if (dat.length == 1) {
+            strm.queuedSize -= dat[0];
+            if (strm.ondrain)
+                strm.ondrain(dat[0]);
+        }
+        else {
+            if (dat[1])
+                w.terminate();
+            strm.ondata.call(strm, err, dat[0], dat[1]);
+        }
+    });
+    w.postMessage(opts);
+    strm.queuedSize = 0;
+    strm.push = function (d, f) {
+        if (!strm.ondata)
+            err(5);
+        if (t)
+            strm.ondata(err(4, 0, 1), null, !!f);
+        strm.queuedSize += d.length;
+        // can fail for cross-realm Uint8Array, but ok - only a small performance penalty
+        w.postMessage([d, t = f], d.buffer instanceof ArrayBuffer ? [d.buffer] : []);
+    };
+    strm.terminate = function () { w.terminate(); };
+    if (flush) {
+        strm.flush = function (sync) { w.postMessage([0, sync]); };
+    }
+};
+// read 2 bytes
+var b2 = function (d, b) { return d[b] | (d[b + 1] << 8); };
+// read 4 bytes
+var b4 = function (d, b) { return (d[b] | (d[b + 1] << 8) | (d[b + 2] << 16) | (d[b + 3] << 24)) >>> 0; };
+// read 8 bytes
+var b8 = function (d, b) { return b4(d, b) + (b4(d, b + 4) * 4294967296); };
+// write bytes
+var wbytes = function (d, b, v) {
+    for (; v; ++b)
+        d[b] = v, v >>>= 8;
+};
+// gzip header
+var gzh = function (c, o) {
+    var fn = o.filename;
+    c[0] = 31, c[1] = 139, c[2] = 8, c[8] = o.level < 2 ? 4 : o.level == 9 ? 2 : 0, c[9] = 3; // assume Unix
+    if (o.mtime != 0)
+        wbytes(c, 4, Math.floor(new Date(o.mtime || Date.now()) / 1000));
+    if (fn) {
+        c[3] = 8;
+        for (var i = 0; i <= fn.length; ++i)
+            c[i + 10] = fn.charCodeAt(i);
+    }
+};
+// gzip footer: -8 to -4 = CRC, -4 to -0 is length
+// gzip start
+var gzs = function (d) {
+    if (d[0] != 31 || d[1] != 139 || d[2] != 8)
+        err(6, 'invalid gzip data');
+    var flg = d[3];
+    var st = 10;
+    if (flg & 4)
+        st += (d[10] | d[11] << 8) + 2;
+    for (var zs = (flg >> 3 & 1) + (flg >> 4 & 1); zs > 0; zs -= !d[st++])
+        ;
+    return st + (flg & 2);
+};
+// gzip length
+var gzl = function (d) {
+    var l = d.length;
+    return (d[l - 4] | d[l - 3] << 8 | d[l - 2] << 16 | d[l - 1] << 24) >>> 0;
+};
+// gzip header length
+var gzhl = function (o) { return 10 + (o.filename ? o.filename.length + 1 : 0); };
+// zlib header
+var zlh = function (c, o) {
+    var lv = o.level, fl = lv == 0 ? 0 : lv < 6 ? 1 : lv == 9 ? 3 : 2;
+    c[0] = 120, c[1] = (fl << 6) | (o.dictionary && 32);
+    c[1] |= 31 - ((c[0] << 8) | c[1]) % 31;
+    if (o.dictionary) {
+        var h = adler();
+        h.p(o.dictionary);
+        wbytes(c, 2, h.d());
+    }
+};
+// zlib start
+var zls = function (d, dict) {
+    if ((d[0] & 15) != 8 || (d[0] >> 4) > 7 || ((d[0] << 8 | d[1]) % 31))
+        err(6, 'invalid zlib data');
+    if ((d[1] >> 5 & 1) == +!dict)
+        err(6, 'invalid zlib data: ' + (d[1] & 32 ? 'need' : 'unexpected') + ' dictionary');
+    return (d[1] >> 3 & 4) + 2;
+};
+function StrmOpt(opts, cb) {
+    if (typeof opts == 'function')
+        cb = opts, opts = {};
+    this.ondata = cb;
+    return opts;
+}
+/**
+ * Streaming DEFLATE compression
+ */
+var Deflate = /*#__PURE__*/ (function () {
+    function Deflate(opts, cb) {
+        if (typeof opts == 'function')
+            cb = opts, opts = {};
+        this.ondata = cb;
+        this.o = opts || {};
+        this.s = { l: 0, i: 32768, w: 32768, z: 32768 };
+        // Buffer length must always be 0 mod 32768 for index calculations to be correct when modifying head and prev
+        // 98304 = 32768 (lookback) + 65536 (common chunk size)
+        this.b = new u8(98304);
+        if (this.o.dictionary) {
+            var dict = this.o.dictionary.subarray(-32768);
+            this.b.set(dict, 32768 - dict.length);
+            this.s.i = 32768 - dict.length;
+        }
+    }
+    Deflate.prototype.p = function (c, f) {
+        this.ondata(dopt(c, this.o, 0, 0, this.s), f);
+    };
+    /**
+     * Pushes a chunk to be deflated
+     * @param chunk The chunk to push
+     * @param final Whether this is the last chunk
+     */
+    Deflate.prototype.push = function (chunk, final) {
+        if (!this.ondata)
+            err(5);
+        if (this.s.l)
+            err(4);
+        var endLen = chunk.length + this.s.z;
+        if (endLen > this.b.length) {
+            if (endLen > 2 * this.b.length - 32768) {
+                var newBuf = new u8(endLen & -32768);
+                newBuf.set(this.b.subarray(0, this.s.z));
+                this.b = newBuf;
+            }
+            var split = this.b.length - this.s.z;
+            this.b.set(chunk.subarray(0, split), this.s.z);
+            this.s.z = this.b.length;
+            this.p(this.b, false);
+            this.b.set(this.b.subarray(-32768));
+            this.b.set(chunk.subarray(split), 32768);
+            this.s.z = chunk.length - split + 32768;
+            this.s.i = 32766, this.s.w = 32768;
+        }
+        else {
+            this.b.set(chunk, this.s.z);
+            this.s.z += chunk.length;
+        }
+        this.s.l = final & 1;
+        if (this.s.z > this.s.w + 8191 || final) {
+            this.p(this.b, final || false);
+            this.s.w = this.s.i, this.s.i -= 2;
+        }
+        if (final) {
+            // cleanup unneeded buffers/state to reduce memory usage
+            this.s = this.o = {};
+            this.b = et;
+        }
+    };
+    /**
+     * Flushes buffered uncompressed data. Useful to immediately retrieve the
+     * deflated output for small inputs.
+     * @param sync Whether to flush to a byte boundary. A sync flush takes 4-5
+     *             extra bytes, but guarantees all pushed data is immediately
+     *             decompressible. A separate DEFLATE stream may be concatenated
+     *             with the current output after a sync flush.
+     */
+    Deflate.prototype.flush = function (sync) {
+        if (!this.ondata)
+            err(5);
+        if (this.s.l)
+            err(4);
+        this.p(this.b, false);
+        this.s.w = this.s.i, this.s.i -= 2;
+        // could technically skip writing the type-0 block for (this.s.r & 7) == 0,
+        // but the deterministic trailer (00 00 FF FF) is useful in some situations
+        if (sync) {
+            var c = new u8(6);
+            c[0] = this.s.r >> 3;
+            // write empty, non-final type-0 block
+            var ep = wfblk(c, this.s.r, et);
+            this.s.r = 0;
+            this.ondata(c.subarray(0, ep >> 3), false);
+        }
+    };
+    return Deflate;
+}());
+
+/**
+ * Asynchronous streaming DEFLATE compression
+ */
+var AsyncDeflate = /*#__PURE__*/ (function () {
+    function AsyncDeflate(opts, cb) {
+        astrmify([
+            bDflt,
+            function () { return [astrm, Deflate]; }
+        ], this, StrmOpt.call(this, opts, cb), function (ev) {
+            var strm = new Deflate(ev.data);
+            onmessage = astrm(strm);
+        }, 6, 1);
+    }
+    return AsyncDeflate;
+}());
+
+function deflate(data, opts, cb) {
+    if (!cb)
+        cb = opts, opts = {};
+    if (typeof cb != 'function')
+        err(7);
+    return cbify(data, opts, [
+        bDflt,
+    ], function (ev) { return pbf(deflateSync(ev.data[0], ev.data[1])); }, 0, cb);
+}
+/**
+ * Compresses data with DEFLATE without any wrapper
+ * @param data The data to compress
+ * @param opts The compression options
+ * @returns The deflated version of the data
+ */
+function deflateSync(data, opts) {
+    return dopt(data, opts || {}, 0, 0);
+}
+/**
+ * Streaming DEFLATE decompression
+ */
+var Inflate = /*#__PURE__*/ (function () {
+    function Inflate(opts, cb) {
+        // no StrmOpt here to avoid adding to workerizer
+        if (typeof opts == 'function')
+            cb = opts, opts = {};
+        this.ondata = cb;
+        var dict = opts && opts.dictionary && opts.dictionary.subarray(-32768);
+        this.s = { i: 0, b: dict ? dict.length : 0 };
+        this.o = new u8(32768);
+        this.p = new u8(0);
+        if (dict)
+            this.o.set(dict);
+    }
+    Inflate.prototype.e = function (c) {
+        if (!this.ondata)
+            err(5);
+        if (this.d)
+            err(4);
+        if (!this.p.length)
+            this.p = c;
+        else if (c.length) {
+            var n = new u8(this.p.length + c.length);
+            n.set(this.p), n.set(c, this.p.length), this.p = n;
+        }
+    };
+    Inflate.prototype.c = function (final) {
+        this.s.i = +(this.d = final || false);
+        var bts = this.s.b;
+        var dt = inflt(this.p, this.s, this.o);
+        this.ondata(slc(dt, bts, this.s.b), this.d);
+        this.o = slc(dt, this.s.b - 32768), this.s.b = this.o.length;
+        this.p = slc(this.p, (this.s.p / 8) | 0), this.s.p &= 7;
+    };
+    /**
+     * Pushes a chunk to be inflated
+     * @param chunk The chunk to push
+     * @param final Whether this is the final chunk
+     */
+    Inflate.prototype.push = function (chunk, final) {
+        this.e(chunk), this.c(final);
+    };
+    return Inflate;
+}());
+
+/**
+ * Asynchronous streaming DEFLATE decompression
+ */
+var AsyncInflate = /*#__PURE__*/ (function () {
+    function AsyncInflate(opts, cb) {
+        astrmify([
+            bInflt,
+            function () { return [astrm, Inflate]; }
+        ], this, StrmOpt.call(this, opts, cb), function (ev) {
+            var strm = new Inflate(ev.data);
+            onmessage = astrm(strm);
+        }, 7, 0);
+    }
+    return AsyncInflate;
+}());
+
+function inflate(data, opts, cb) {
+    if (!cb)
+        cb = opts, opts = {};
+    if (typeof cb != 'function')
+        err(7);
+    return cbify(data, opts, [
+        bInflt
+    ], function (ev) { return pbf(inflateSync(ev.data[0], gopt(ev.data[1]))); }, 1, cb);
+}
+function inflateSync(data, opts) {
+    return inflt(data, { i: 2 }, opts && opts.out, opts && opts.dictionary);
+}
+// before you yell at me for not just using extends, my reason is that TS inheritance is hard to workerize.
+/**
+ * Streaming GZIP compression
+ */
+var Gzip = /*#__PURE__*/ (function () {
+    function Gzip(opts, cb) {
+        this.c = crc();
+        this.l = 0;
+        this.v = 1;
+        Deflate.call(this, opts, cb);
+    }
+    /**
+     * Pushes a chunk to be GZIPped
+     * @param chunk The chunk to push
+     * @param final Whether this is the last chunk
+     */
+    Gzip.prototype.push = function (chunk, final) {
+        this.c.p(chunk);
+        this.l += chunk.length;
+        Deflate.prototype.push.call(this, chunk, final);
+    };
+    Gzip.prototype.p = function (c, f) {
+        var raw = dopt(c, this.o, this.v && gzhl(this.o), f && 8, this.s);
+        if (this.v)
+            gzh(raw, this.o), this.v = 0;
+        if (f)
+            wbytes(raw, raw.length - 8, this.c.d()), wbytes(raw, raw.length - 4, this.l);
+        this.ondata(raw, f);
+    };
+    /**
+     * Flushes buffered uncompressed data. Useful to immediately retrieve the
+     * GZIPped output for small inputs.
+     * @param sync Whether to flush to a byte boundary. A sync flush takes 4-5
+     *             extra bytes, but guarantees all pushed data is immediately
+     *             decompressible.
+     */
+    Gzip.prototype.flush = function (sync) {
+        Deflate.prototype.flush.call(this, sync);
+    };
+    return Gzip;
+}());
+
+/**
+ * Asynchronous streaming GZIP compression
+ */
+var AsyncGzip = /*#__PURE__*/ (function () {
+    function AsyncGzip(opts, cb) {
+        astrmify([
+            bDflt,
+            gze,
+            function () { return [astrm, Deflate, Gzip]; }
+        ], this, StrmOpt.call(this, opts, cb), function (ev) {
+            var strm = new Gzip(ev.data);
+            onmessage = astrm(strm);
+        }, 8, 1);
+    }
+    return AsyncGzip;
+}());
+
+function gzip(data, opts, cb) {
+    if (!cb)
+        cb = opts, opts = {};
+    if (typeof cb != 'function')
+        err(7);
+    return cbify(data, opts, [
+        bDflt,
+        gze,
+        function () { return [gzipSync]; }
+    ], function (ev) { return pbf(gzipSync(ev.data[0], ev.data[1])); }, 2, cb);
+}
+/**
+ * Compresses data with GZIP
+ * @param data The data to compress
+ * @param opts The compression options
+ * @returns The gzipped version of the data
+ */
+function gzipSync(data, opts) {
+    if (!opts)
+        opts = {};
+    var c = crc(), l = data.length;
+    c.p(data);
+    var d = dopt(data, opts, gzhl(opts), 8), s = d.length;
+    return gzh(d, opts), wbytes(d, s - 8, c.d()), wbytes(d, s - 4, l), d;
+}
+/**
+ * Streaming single or multi-member GZIP decompression
+ */
+var Gunzip = /*#__PURE__*/ (function () {
+    function Gunzip(opts, cb) {
+        this.v = 1;
+        this.r = 0;
+        Inflate.call(this, opts, cb);
+    }
+    /**
+     * Pushes a chunk to be GUNZIPped
+     * @param chunk The chunk to push
+     * @param final Whether this is the last chunk
+     */
+    Gunzip.prototype.push = function (chunk, final) {
+        Inflate.prototype.e.call(this, chunk);
+        this.r += chunk.length;
+        if (this.v) {
+            var p = this.p.subarray(this.v - 1);
+            var s = p.length > 3 ? gzs(p) : 4;
+            if (s > p.length) {
+                if (!final)
+                    return;
+            }
+            else if (this.v > 1 && this.onmember) {
+                this.onmember(this.r - p.length);
+            }
+            this.p = p.subarray(s), this.v = 0;
+        }
+        // necessary to prevent TS from using the closure value
+        // This allows for workerization to function correctly
+        Inflate.prototype.c.call(this, 0);
+        // process concatenated GZIP
+        if (this.s.f && !this.s.l) {
+            this.v = shft(this.s.p) + 9;
+            this.s = { i: 0 };
+            this.o = new u8(0);
+            this.push(new u8(0), final);
+        }
+        else if (final) {
+            Inflate.prototype.c.call(this, final);
+        }
+    };
+    return Gunzip;
+}());
+
+/**
+ * Asynchronous streaming single or multi-member GZIP decompression
+ */
+var AsyncGunzip = /*#__PURE__*/ (function () {
+    function AsyncGunzip(opts, cb) {
+        var _this = this;
+        astrmify([
+            bInflt,
+            guze,
+            function () { return [astrm, Inflate, Gunzip]; }
+        ], this, StrmOpt.call(this, opts, cb), function (ev) {
+            var strm = new Gunzip(ev.data);
+            strm.onmember = function (offset) { return postMessage(offset); };
+            onmessage = astrm(strm);
+        }, 9, 0, function (offset) { return _this.onmember && _this.onmember(offset); });
+    }
+    return AsyncGunzip;
+}());
+
+function gunzip(data, opts, cb) {
+    if (!cb)
+        cb = opts, opts = {};
+    if (typeof cb != 'function')
+        err(7);
+    return cbify(data, opts, [
+        bInflt,
+        guze,
+        function () { return [gunzipSync]; }
+    ], function (ev) { return pbf(gunzipSync(ev.data[0], ev.data[1])); }, 3, cb);
+}
+function gunzipSync(data, opts) {
+    var st = gzs(data);
+    if (st + 8 > data.length)
+        err(6, 'invalid gzip data');
+    return inflt(data.subarray(st, -8), { i: 2 }, opts && opts.out || new u8(gzl(data)), opts && opts.dictionary);
+}
+/**
+ * Streaming Zlib compression
+ */
+var Zlib = /*#__PURE__*/ (function () {
+    function Zlib(opts, cb) {
+        this.c = adler();
+        this.v = 1;
+        Deflate.call(this, opts, cb);
+    }
+    /**
+     * Pushes a chunk to be zlibbed
+     * @param chunk The chunk to push
+     * @param final Whether this is the last chunk
+     */
+    Zlib.prototype.push = function (chunk, final) {
+        this.c.p(chunk);
+        Deflate.prototype.push.call(this, chunk, final);
+    };
+    Zlib.prototype.p = function (c, f) {
+        var raw = dopt(c, this.o, this.v && (this.o.dictionary ? 6 : 2), f && 4, this.s);
+        if (this.v)
+            zlh(raw, this.o), this.v = 0;
+        if (f)
+            wbytes(raw, raw.length - 4, this.c.d());
+        this.ondata(raw, f);
+    };
+    /**
+     * Flushes buffered uncompressed data. Useful to immediately retrieve the
+     * zlibbed output for small inputs.
+     * @param sync Whether to flush to a byte boundary. A sync flush takes 4-5
+     *             extra bytes, but guarantees all pushed data is immediately
+     *             decompressible.
+     */
+    Zlib.prototype.flush = function (sync) {
+        Deflate.prototype.flush.call(this, sync);
+    };
+    return Zlib;
+}());
+
+/**
+ * Asynchronous streaming Zlib compression
+ */
+var AsyncZlib = /*#__PURE__*/ (function () {
+    function AsyncZlib(opts, cb) {
+        astrmify([
+            bDflt,
+            zle,
+            function () { return [astrm, Deflate, Zlib]; }
+        ], this, StrmOpt.call(this, opts, cb), function (ev) {
+            var strm = new Zlib(ev.data);
+            onmessage = astrm(strm);
+        }, 10, 1);
+    }
+    return AsyncZlib;
+}());
+
+function zlib(data, opts, cb) {
+    if (!cb)
+        cb = opts, opts = {};
+    if (typeof cb != 'function')
+        err(7);
+    return cbify(data, opts, [
+        bDflt,
+        zle,
+        function () { return [zlibSync]; }
+    ], function (ev) { return pbf(zlibSync(ev.data[0], ev.data[1])); }, 4, cb);
+}
+/**
+ * Compress data with Zlib
+ * @param data The data to compress
+ * @param opts The compression options
+ * @returns The zlib-compressed version of the data
+ */
+function zlibSync(data, opts) {
+    if (!opts)
+        opts = {};
+    var a = adler();
+    a.p(data);
+    var d = dopt(data, opts, opts.dictionary ? 6 : 2, 4);
+    return zlh(d, opts), wbytes(d, d.length - 4, a.d()), d;
+}
+/**
+ * Streaming Zlib decompression
+ */
+var Unzlib = /*#__PURE__*/ (function () {
+    function Unzlib(opts, cb) {
+        Inflate.call(this, opts, cb);
+        this.v = opts && opts.dictionary ? 2 : 1;
+    }
+    /**
+     * Pushes a chunk to be unzlibbed
+     * @param chunk The chunk to push
+     * @param final Whether this is the last chunk
+     */
+    Unzlib.prototype.push = function (chunk, final) {
+        Inflate.prototype.e.call(this, chunk);
+        if (this.v) {
+            if (this.p.length < 6 && !final)
+                return;
+            this.p = this.p.subarray(zls(this.p, this.v - 1)), this.v = 0;
+        }
+        if (final) {
+            if (this.p.length < 4)
+                err(6, 'invalid zlib data');
+            this.p = this.p.subarray(0, -4);
+        }
+        // necessary to prevent TS from using the closure value
+        // This allows for workerization to function correctly
+        Inflate.prototype.c.call(this, final);
+    };
+    return Unzlib;
+}());
+
+/**
+ * Asynchronous streaming Zlib decompression
+ */
+var AsyncUnzlib = /*#__PURE__*/ (function () {
+    function AsyncUnzlib(opts, cb) {
+        astrmify([
+            bInflt,
+            zule,
+            function () { return [astrm, Inflate, Unzlib]; }
+        ], this, StrmOpt.call(this, opts, cb), function (ev) {
+            var strm = new Unzlib(ev.data);
+            onmessage = astrm(strm);
+        }, 11, 0);
+    }
+    return AsyncUnzlib;
+}());
+
+function unzlib(data, opts, cb) {
+    if (!cb)
+        cb = opts, opts = {};
+    if (typeof cb != 'function')
+        err(7);
+    return cbify(data, opts, [
+        bInflt,
+        zule,
+        function () { return [unzlibSync]; }
+    ], function (ev) { return pbf(unzlibSync(ev.data[0], gopt(ev.data[1]))); }, 5, cb);
+}
+function unzlibSync(data, opts) {
+    return inflt(data.subarray(zls(data, opts && opts.dictionary), -4), { i: 2 }, opts && opts.out, opts && opts.dictionary);
+}
+// Default algorithm for compression (used because having a known output size allows faster decompression)
+
+
+/**
+ * Streaming GZIP, Zlib, or raw DEFLATE decompression
+ */
+var Decompress = /*#__PURE__*/ (function () {
+    function Decompress(opts, cb) {
+        this.o = StrmOpt.call(this, opts, cb) || {};
+        this.G = Gunzip;
+        this.I = Inflate;
+        this.Z = Unzlib;
+    }
+    // init substream
+    // overriden by AsyncDecompress
+    Decompress.prototype.i = function () {
+        var _this = this;
+        this.s.ondata = function (dat, final) {
+            _this.ondata(dat, final);
+        };
+    };
+    /**
+     * Pushes a chunk to be decompressed
+     * @param chunk The chunk to push
+     * @param final Whether this is the last chunk
+     */
+    Decompress.prototype.push = function (chunk, final) {
+        if (!this.ondata)
+            err(5);
+        if (!this.s) {
+            if (this.p && this.p.length) {
+                var n = new u8(this.p.length + chunk.length);
+                n.set(this.p), n.set(chunk, this.p.length);
+            }
+            else
+                this.p = chunk;
+            if (this.p.length > 2) {
+                this.s = (this.p[0] == 31 && this.p[1] == 139 && this.p[2] == 8)
+                    ? new this.G(this.o)
+                    : ((this.p[0] & 15) != 8 || (this.p[0] >> 4) > 7 || ((this.p[0] << 8 | this.p[1]) % 31))
+                        ? new this.I(this.o)
+                        : new this.Z(this.o);
+                this.i();
+                this.s.push(this.p, final);
+                this.p = null;
+            }
+        }
+        else
+            this.s.push(chunk, final);
+    };
+    return Decompress;
+}());
+
+/**
+ * Asynchronous streaming GZIP, Zlib, or raw DEFLATE decompression
+ */
+var AsyncDecompress = /*#__PURE__*/ (function () {
+    function AsyncDecompress(opts, cb) {
+        Decompress.call(this, opts, cb);
+        this.queuedSize = 0;
+        this.G = AsyncGunzip;
+        this.I = AsyncInflate;
+        this.Z = AsyncUnzlib;
+    }
+    AsyncDecompress.prototype.i = function () {
+        var _this = this;
+        this.s.ondata = function (err, dat, final) {
+            _this.ondata(err, dat, final);
+        };
+        this.s.ondrain = function (size) {
+            _this.queuedSize -= size;
+            if (_this.ondrain)
+                _this.ondrain(size);
+        };
+    };
+    /**
+     * Pushes a chunk to be decompressed
+     * @param chunk The chunk to push
+     * @param final Whether this is the last chunk
+     */
+    AsyncDecompress.prototype.push = function (chunk, final) {
+        this.queuedSize += chunk.length;
+        Decompress.prototype.push.call(this, chunk, final);
+    };
+    return AsyncDecompress;
+}());
+
+function decompress(data, opts, cb) {
+    if (!cb)
+        cb = opts, opts = {};
+    if (typeof cb != 'function')
+        err(7);
+    return (data[0] == 31 && data[1] == 139 && data[2] == 8)
+        ? gunzip(data, opts, cb)
+        : ((data[0] & 15) != 8 || (data[0] >> 4) > 7 || ((data[0] << 8 | data[1]) % 31))
+            ? inflate(data, opts, cb)
+            : unzlib(data, opts, cb);
+}
+/**
+ * Expands compressed GZIP, Zlib, or raw DEFLATE data, automatically detecting the format
+ * @param data The data to decompress
+ * @param opts The decompression options
+ * @returns The decompressed version of the data
+ */
+function decompressSync(data, opts) {
+    return (data[0] == 31 && data[1] == 139 && data[2] == 8)
+        ? gunzipSync(data, opts)
+        : ((data[0] & 15) != 8 || (data[0] >> 4) > 7 || ((data[0] << 8 | data[1]) % 31))
+            ? inflateSync(data, opts)
+            : unzlibSync(data, opts);
+}
+// flatten a directory structure
+var fltn = function (d, p, t, o) {
+    for (var k in d) {
+        var val = d[k], n = p + k, op = o;
+        if (Array.isArray(val))
+            op = mrg(o, val[1]), val = val[0];
+        if (ArrayBuffer.isView(val))
+            t[n] = [val, op];
+        else {
+            t[n += '/'] = [new u8(0), op];
+            fltn(val, n, t, o);
+        }
+    }
+};
+// text encoder
+var te = typeof TextEncoder != 'undefined' && /*#__PURE__*/ new TextEncoder();
+// text decoder
+var td = typeof TextDecoder != 'undefined' && /*#__PURE__*/ new TextDecoder();
+// text decoder stream
+var tds = 0;
+try {
+    td.decode(et, { stream: true });
+    tds = 1;
+}
+catch (e) { }
+// decode UTF8
+var dutf8 = function (d) {
+    for (var r = '', i = 0;;) {
+        var c = d[i++];
+        var eb = (c > 127) + (c > 223) + (c > 239);
+        if (i + eb > d.length)
+            return { s: r, r: slc(d, i - 1) };
+        if (!eb)
+            r += String.fromCharCode(c);
+        else if (eb == 3) {
+            c = ((c & 15) << 18 | (d[i++] & 63) << 12 | (d[i++] & 63) << 6 | (d[i++] & 63)) - 65536,
+                r += String.fromCharCode(55296 | (c >> 10), 56320 | (c & 1023));
+        }
+        else if (eb & 1)
+            r += String.fromCharCode((c & 31) << 6 | (d[i++] & 63));
+        else
+            r += String.fromCharCode((c & 15) << 12 | (d[i++] & 63) << 6 | (d[i++] & 63));
+    }
+};
+/**
+ * Streaming UTF-8 decoding
+ */
+var DecodeUTF8 = /*#__PURE__*/ (function () {
+    /**
+     * Creates a UTF-8 decoding stream
+     * @param cb The callback to call whenever data is decoded
+     */
+    function DecodeUTF8(cb) {
+        this.ondata = cb;
+        if (tds)
+            this.t = new TextDecoder();
+        else
+            this.p = et;
+    }
+    /**
+     * Pushes a chunk to be decoded from UTF-8 binary
+     * @param chunk The chunk to push
+     * @param final Whether this is the last chunk
+     */
+    DecodeUTF8.prototype.push = function (chunk, final) {
+        if (!this.ondata)
+            err(5);
+        final = !!final;
+        if (this.t) {
+            this.ondata(this.t.decode(chunk, { stream: true }), final);
+            if (final) {
+                if (this.t.decode().length)
+                    err(8);
+                this.t = null;
+            }
+            return;
+        }
+        if (!this.p)
+            err(4);
+        var dat = new u8(this.p.length + chunk.length);
+        dat.set(this.p);
+        dat.set(chunk, this.p.length);
+        var _a = dutf8(dat), s = _a.s, r = _a.r;
+        if (final) {
+            if (r.length)
+                err(8);
+            this.p = null;
+        }
+        else
+            this.p = r;
+        this.ondata(s, final);
+    };
+    return DecodeUTF8;
+}());
+
+/**
+ * Streaming UTF-8 encoding
+ */
+var EncodeUTF8 = /*#__PURE__*/ (function () {
+    /**
+     * Creates a UTF-8 decoding stream
+     * @param cb The callback to call whenever data is encoded
+     */
+    function EncodeUTF8(cb) {
+        this.ondata = cb;
+    }
+    /**
+     * Pushes a chunk to be encoded to UTF-8
+     * @param chunk The string data to push
+     * @param final Whether this is the last chunk
+     */
+    EncodeUTF8.prototype.push = function (chunk, final) {
+        if (!this.ondata)
+            err(5);
+        if (this.d)
+            err(4);
+        this.ondata(strToU8(chunk), this.d = final || false);
+    };
+    return EncodeUTF8;
+}());
+
+/**
+ * Converts a string into a Uint8Array for use with compression/decompression methods
+ * @param str The string to encode
+ * @param latin1 Whether or not to interpret the data as Latin-1. This should
+ *               not need to be true unless decoding a binary string.
+ * @returns The string encoded in UTF-8/Latin-1 binary
+ */
+function strToU8(str, latin1) {
+    if (latin1) {
+        var ar_1 = new u8(str.length);
+        for (var i = 0; i < str.length; ++i)
+            ar_1[i] = str.charCodeAt(i);
+        return ar_1;
+    }
+    if (te)
+        return te.encode(str);
+    var l = str.length;
+    var ar = new u8(str.length + (str.length >> 1));
+    var ai = 0;
+    var w = function (v) { ar[ai++] = v; };
+    for (var i = 0; i < l; ++i) {
+        if (ai + 5 > ar.length) {
+            var n = new u8(ai + 8 + ((l - i) << 1));
+            n.set(ar);
+            ar = n;
+        }
+        var c = str.charCodeAt(i);
+        if (c < 128 || latin1)
+            w(c);
+        else if (c < 2048)
+            w(192 | (c >> 6)), w(128 | (c & 63));
+        else if (c > 55295 && c < 57344)
+            c = 65536 + (c & 1023 << 10) | (str.charCodeAt(++i) & 1023),
+                w(240 | (c >> 18)), w(128 | ((c >> 12) & 63)), w(128 | ((c >> 6) & 63)), w(128 | (c & 63));
+        else
+            w(224 | (c >> 12)), w(128 | ((c >> 6) & 63)), w(128 | (c & 63));
+    }
+    return slc(ar, 0, ai);
+}
+/**
+ * Converts a Uint8Array to a string
+ * @param dat The data to decode to string
+ * @param latin1 Whether or not to interpret the data as Latin-1. This should
+ *               not need to be true unless encoding to binary string.
+ * @returns The original UTF-8/Latin-1 string
+ */
+function strFromU8(dat, latin1) {
+    if (latin1) {
+        var r = '';
+        for (var i = 0; i < dat.length; i += 16384)
+            r += String.fromCharCode.apply(null, dat.subarray(i, i + 16384));
+        return r;
+    }
+    else if (td) {
+        return td.decode(dat);
+    }
+    else {
+        var _a = dutf8(dat), s = _a.s, r = _a.r;
+        if (r.length)
+            err(8);
+        return s;
+    }
+}
+;
+// deflate bit flag
+var dbf = function (l) { return l == 1 ? 3 : l < 6 ? 2 : l == 9 ? 1 : 0; };
+// skip local zip header
+var slzh = function (d, b) { return b + 30 + b2(d, b + 26) + b2(d, b + 28); };
+// read zip header
+var zh = function (d, b, z) {
+    var fnl = b2(d, b + 28), efl = b2(d, b + 30), fn = strFromU8(d.subarray(b + 46, b + 46 + fnl), !(b2(d, b + 8) & 2048)), es = b + 46 + fnl;
+    var _a = z64hs(d, es, efl, z, b4(d, b + 20), b4(d, b + 24), b4(d, b + 42)), sc = _a[0], su = _a[1], off = _a[2];
+    return [b2(d, b + 10), sc, su, fn, es + efl + b2(d, b + 32), off];
+};
+// read zip64 header sizes
+var z64hs = function (d, b, l, z, sc, su, off) {
+    var nsc = sc == 4294967295, nsu = su == 4294967295, noff = off == 4294967295, e = b + l;
+    var nf = nsc + nsu + noff;
+    if (z && nf) {
+        for (; b + 4 < e; b += 4 + b2(d, b + 2)) {
+            if (b2(d, b) == 1) {
+                return [
+                    nsc ? b8(d, b + 4 + 8 * nsu) : sc,
+                    nsu ? b8(d, b + 4) : su,
+                    noff ? b8(d, b + 4 + 8 * (nsu + nsc)) : off,
+                    1
+                ];
+            }
+        }
+        // z == 2 for unknown whether or not zip64
+        if (z < 2)
+            err(13);
+    }
+    return [sc, su, off, 0];
+};
+// extra field length
+var exfl = function (ex) {
+    var le = 0;
+    if (ex) {
+        for (var k in ex) {
+            var l = ex[k].length;
+            if (l > 65535)
+                err(9);
+            le += l + 4;
+        }
+    }
+    return le;
+};
+// write zip header
+var wzh = function (d, b, f, fn, u, c, ce, co) {
+    var fl = fn.length, ex = f.extra, col = co && co.length;
+    var exl = exfl(ex);
+    wbytes(d, b, ce != null ? 0x2014B50 : 0x4034B50), b += 4;
+    if (ce != null)
+        d[b++] = 20, d[b++] = f.os;
+    d[b] = 20, b += 2; // spec compliance? what's that?
+    d[b++] = (f.flag << 1) | (c < 0 && 8), d[b++] = u && 8;
+    d[b++] = f.compression & 255, d[b++] = f.compression >> 8;
+    var dt = new Date(f.mtime == null ? Date.now() : f.mtime), y = dt.getFullYear() - 1980;
+    if (y < 0 || y > 119)
+        err(10);
+    wbytes(d, b, (y << 25) | ((dt.getMonth() + 1) << 21) | (dt.getDate() << 16) | (dt.getHours() << 11) | (dt.getMinutes() << 5) | (dt.getSeconds() >> 1)), b += 4;
+    if (c != -1) {
+        wbytes(d, b, f.crc);
+        wbytes(d, b + 4, c < 0 ? -c - 2 : c);
+        wbytes(d, b + 8, f.size);
+    }
+    wbytes(d, b + 12, fl);
+    wbytes(d, b + 14, exl), b += 16;
+    if (ce != null) {
+        wbytes(d, b, col);
+        wbytes(d, b + 6, f.attrs);
+        wbytes(d, b + 10, ce), b += 14;
+    }
+    d.set(fn, b);
+    b += fl;
+    if (exl) {
+        for (var k in ex) {
+            var exf = ex[k], l = exf.length;
+            wbytes(d, b, +k);
+            wbytes(d, b + 2, l);
+            d.set(exf, b + 4), b += 4 + l;
+        }
+    }
+    if (col)
+        d.set(co, b), b += col;
+    return b;
+};
+// write zip footer (end of central directory)
+var wzf = function (o, b, c, d, e) {
+    wbytes(o, b, 0x6054B50); // skip disk
+    wbytes(o, b + 8, c);
+    wbytes(o, b + 10, c);
+    wbytes(o, b + 12, d);
+    wbytes(o, b + 16, e);
+};
+/**
+ * A pass-through stream to keep data uncompressed in a ZIP archive.
+ */
+var ZipPassThrough = /*#__PURE__*/ (function () {
+    /**
+     * Creates a pass-through stream that can be added to ZIP archives
+     * @param filename The filename to associate with this data stream
+     */
+    function ZipPassThrough(filename) {
+        this.filename = filename;
+        this.c = crc();
+        this.size = 0;
+        this.compression = 0;
+    }
+    /**
+     * Processes a chunk and pushes to the output stream. You can override this
+     * method in a subclass for custom behavior, but by default this passes
+     * the data through. You must call this.ondata(err, chunk, final) at some
+     * point in this method.
+     * @param chunk The chunk to process
+     * @param final Whether this is the last chunk
+     */
+    ZipPassThrough.prototype.process = function (chunk, final) {
+        this.ondata(null, chunk, final);
+    };
+    /**
+     * Pushes a chunk to be added. If you are subclassing this with a custom
+     * compression algorithm, note that you must push data from the source
+     * file only, pre-compression.
+     * @param chunk The chunk to push
+     * @param final Whether this is the last chunk
+     */
+    ZipPassThrough.prototype.push = function (chunk, final) {
+        if (!this.ondata)
+            err(5);
+        this.c.p(chunk);
+        this.size += chunk.length;
+        if (final)
+            this.crc = this.c.d();
+        // we shouldn't really do this cast, but properly handling ArrayBufferLike
+        // makes the API unergonomic with Buffer
+        this.process(chunk, final || false);
+    };
+    return ZipPassThrough;
+}());
+
+// I don't extend because TypeScript extension adds 1kB of runtime bloat
+/**
+ * Streaming DEFLATE compression for ZIP archives. Prefer using AsyncZipDeflate
+ * for better performance
+ */
+var ZipDeflate = /*#__PURE__*/ (function () {
+    /**
+     * Creates a DEFLATE stream that can be added to ZIP archives
+     * @param filename The filename to associate with this data stream
+     * @param opts The compression options
+     */
+    function ZipDeflate(filename, opts) {
+        var _this = this;
+        if (!opts)
+            opts = {};
+        ZipPassThrough.call(this, filename);
+        this.d = new Deflate(opts, function (dat, final) {
+            _this.ondata(null, dat, final);
+        });
+        this.compression = 8;
+        this.flag = dbf(opts.level);
+    }
+    ZipDeflate.prototype.process = function (chunk, final) {
+        try {
+            this.d.push(chunk, final);
+        }
+        catch (e) {
+            this.ondata(e, null, final);
+        }
+    };
+    /**
+     * Pushes a chunk to be deflated
+     * @param chunk The chunk to push
+     * @param final Whether this is the last chunk
+     */
+    ZipDeflate.prototype.push = function (chunk, final) {
+        ZipPassThrough.prototype.push.call(this, chunk, final);
+    };
+    return ZipDeflate;
+}());
+
+/**
+ * Asynchronous streaming DEFLATE compression for ZIP archives
+ */
+var AsyncZipDeflate = /*#__PURE__*/ (function () {
+    /**
+     * Creates an asynchronous DEFLATE stream that can be added to ZIP archives
+     * @param filename The filename to associate with this data stream
+     * @param opts The compression options
+     */
+    function AsyncZipDeflate(filename, opts) {
+        var _this = this;
+        if (!opts)
+            opts = {};
+        ZipPassThrough.call(this, filename);
+        this.d = new AsyncDeflate(opts, function (err, dat, final) {
+            _this.ondata(err, dat, final);
+        });
+        this.compression = 8;
+        this.flag = dbf(opts.level);
+        this.terminate = this.d.terminate;
+    }
+    AsyncZipDeflate.prototype.process = function (chunk, final) {
+        this.d.push(chunk, final);
+    };
+    /**
+     * Pushes a chunk to be deflated
+     * @param chunk The chunk to push
+     * @param final Whether this is the last chunk
+     */
+    AsyncZipDeflate.prototype.push = function (chunk, final) {
+        ZipPassThrough.prototype.push.call(this, chunk, final);
+    };
+    return AsyncZipDeflate;
+}());
+
+/**
+ * A zippable archive to which files can incrementally be added
+ */
+var Zip = /*#__PURE__*/ (function () {
+    /**
+     * Creates an empty ZIP archive to which files can be added
+     * @param cb The callback to call whenever data for the generated ZIP archive
+     *           is available
+     */
+    function Zip(cb) {
+        this.ondata = cb;
+        this.u = [];
+        this.d = 1;
+    }
+    /**
+     * Adds a file to the ZIP archive
+     * @param file The file stream to add
+     */
+    Zip.prototype.add = function (file) {
+        var _this = this;
+        if (!this.ondata)
+            err(5);
+        // finishing or finished
+        if (this.d & 2)
+            this.ondata(err(4 + (this.d & 1) * 8, 0, 1), null, false);
+        else {
+            var f = strToU8(file.filename), fl_1 = f.length;
+            var com = file.comment, o = com && strToU8(com);
+            var u = fl_1 != file.filename.length || (o && (com.length != o.length));
+            var hl_1 = fl_1 + exfl(file.extra) + 30;
+            if (fl_1 > 65535)
+                this.ondata(err(11, 0, 1), null, false);
+            var header = new u8(hl_1);
+            wzh(header, 0, file, f, u, -1);
+            var chks_1 = [header];
+            var pAll_1 = function () {
+                for (var _i = 0, chks_2 = chks_1; _i < chks_2.length; _i++) {
+                    var chk = chks_2[_i];
+                    _this.ondata(null, chk, false);
+                }
+                chks_1 = [];
+            };
+            var tr_1 = this.d;
+            this.d = 0;
+            var ind_1 = this.u.length;
+            var uf_1 = mrg(file, {
+                f: f,
+                u: u,
+                o: o,
+                t: function () {
+                    if (file.terminate)
+                        file.terminate();
+                },
+                r: function () {
+                    pAll_1();
+                    if (tr_1) {
+                        var nxt = _this.u[ind_1 + 1];
+                        if (nxt)
+                            nxt.r();
+                        else
+                            _this.d = 1;
+                    }
+                    tr_1 = 1;
+                }
+            });
+            var cl_1 = 0;
+            file.ondata = function (err, dat, final) {
+                if (err) {
+                    _this.ondata(err, dat, final);
+                    _this.terminate();
+                }
+                else {
+                    cl_1 += dat.length;
+                    chks_1.push(dat);
+                    if (final) {
+                        var dd = new u8(16);
+                        wbytes(dd, 0, 0x8074B50);
+                        wbytes(dd, 4, file.crc);
+                        wbytes(dd, 8, cl_1);
+                        wbytes(dd, 12, file.size);
+                        chks_1.push(dd);
+                        uf_1.c = cl_1, uf_1.b = hl_1 + cl_1 + 16, uf_1.crc = file.crc, uf_1.size = file.size;
+                        if (tr_1)
+                            uf_1.r();
+                        tr_1 = 1;
+                    }
+                    else if (tr_1)
+                        pAll_1();
+                }
+            };
+            this.u.push(uf_1);
+        }
+    };
+    /**
+     * Ends the process of adding files and prepares to emit the final chunks.
+     * This *must* be called after adding all desired files for the resulting
+     * ZIP file to work properly.
+     */
+    Zip.prototype.end = function () {
+        var _this = this;
+        if (this.d & 2) {
+            this.ondata(err(4 + (this.d & 1) * 8, 0, 1), null, true);
+            return;
+        }
+        if (this.d)
+            this.e();
+        else
+            this.u.push({
+                r: function () {
+                    if (!(_this.d & 1))
+                        return;
+                    _this.u.splice(-1, 1);
+                    _this.e();
+                },
+                t: function () { }
+            });
+        this.d = 3;
+    };
+    Zip.prototype.e = function () {
+        var bt = 0, l = 0, tl = 0;
+        for (var _i = 0, _a = this.u; _i < _a.length; _i++) {
+            var f = _a[_i];
+            tl += 46 + f.f.length + exfl(f.extra) + (f.o ? f.o.length : 0);
+        }
+        var out = new u8(tl + 22);
+        for (var _b = 0, _c = this.u; _b < _c.length; _b++) {
+            var f = _c[_b];
+            wzh(out, bt, f, f.f, f.u, -f.c - 2, l, f.o);
+            bt += 46 + f.f.length + exfl(f.extra) + (f.o ? f.o.length : 0), l += f.b;
+        }
+        wzf(out, bt, this.u.length, tl, l);
+        this.ondata(null, out, true);
+        this.d = 2;
+    };
+    /**
+     * A method to terminate any internal workers used by the stream. Subsequent
+     * calls to add() will fail.
+     */
+    Zip.prototype.terminate = function () {
+        for (var _i = 0, _a = this.u; _i < _a.length; _i++) {
+            var f = _a[_i];
+            f.t();
+        }
+        this.d = 2;
+    };
+    return Zip;
+}());
+
+function zip(data, opts, cb) {
+    if (!cb)
+        cb = opts, opts = {};
+    if (typeof cb != 'function')
+        err(7);
+    var r = {};
+    fltn(data, '', r, opts);
+    var k = Object.keys(r);
+    var lft = k.length, o = 0, tot = 0;
+    var slft = lft, files = new Array(lft);
+    var term = [];
+    var tAll = function () {
+        for (var i = 0; i < term.length; ++i)
+            term[i]();
+    };
+    var cbd = function (a, b) {
+        mt(function () { cb(a, b); });
+    };
+    mt(function () { cbd = cb; });
+    var cbf = function () {
+        var out = new u8(tot + 22), oe = o, cdl = tot - o;
+        tot = 0;
+        for (var i = 0; i < slft; ++i) {
+            var f = files[i];
+            try {
+                var l = f.c.length;
+                wzh(out, tot, f, f.f, f.u, l);
+                var badd = 30 + f.f.length + exfl(f.extra);
+                var loc = tot + badd;
+                out.set(f.c, loc);
+                wzh(out, o, f, f.f, f.u, l, tot, f.m), o += 16 + badd + (f.m ? f.m.length : 0), tot = loc + l;
+            }
+            catch (e) {
+                return cbd(e, null);
+            }
+        }
+        wzf(out, o, files.length, cdl, oe);
+        cbd(null, out);
+    };
+    if (!lft)
+        cbf();
+    var _loop_1 = function (i) {
+        var fn = k[i];
+        var _a = r[fn], file = _a[0], p = _a[1];
+        var c = crc(), size = file.length;
+        c.p(file);
+        var f = strToU8(fn), s = f.length;
+        var com = p.comment, m = com && strToU8(com), ms = m && m.length;
+        var exl = exfl(p.extra);
+        var compression = p.level == 0 ? 0 : 8;
+        var cbl = function (e, d) {
+            if (e) {
+                tAll();
+                cbd(e, null);
+            }
+            else {
+                var l = d.length;
+                files[i] = mrg(p, {
+                    size: size,
+                    crc: c.d(),
+                    c: d,
+                    f: f,
+                    m: m,
+                    u: s != fn.length || (m && (com.length != ms)),
+                    compression: compression
+                });
+                o += 30 + s + exl + l;
+                tot += 76 + 2 * (s + exl) + (ms || 0) + l;
+                if (!--lft)
+                    cbf();
+            }
+        };
+        if (s > 65535)
+            cbl(err(11, 0, 1), null);
+        if (!compression)
+            cbl(null, file);
+        else if (size < 160000) {
+            try {
+                cbl(null, deflateSync(file, p));
+            }
+            catch (e) {
+                cbl(e, null);
+            }
+        }
+        else
+            term.push(deflate(file, p, cbl));
+    };
+    // Cannot use lft because it can decrease
+    for (var i = 0; i < slft; ++i) {
+        _loop_1(i);
+    }
+    return tAll;
+}
+/**
+ * Synchronously creates a ZIP file. Prefer using `zip` for better performance
+ * with more than one file.
+ * @param data The directory structure for the ZIP archive
+ * @param opts The main options, merged with per-file options
+ * @returns The generated ZIP archive
+ */
+function zipSync(data, opts) {
+    if (!opts)
+        opts = {};
+    var r = {};
+    var files = [];
+    fltn(data, '', r, opts);
+    var o = 0;
+    var tot = 0;
+    for (var fn in r) {
+        var _a = r[fn], file = _a[0], p = _a[1];
+        var compression = p.level == 0 ? 0 : 8;
+        var f = strToU8(fn), s = f.length;
+        var com = p.comment, m = com && strToU8(com), ms = m && m.length;
+        var exl = exfl(p.extra);
+        if (s > 65535)
+            err(11);
+        var d = compression ? deflateSync(file, p) : file, l = d.length;
+        var c = crc();
+        c.p(file);
+        files.push(mrg(p, {
+            size: file.length,
+            crc: c.d(),
+            c: d,
+            f: f,
+            m: m,
+            u: s != fn.length || (m && (com.length != ms)),
+            o: o,
+            compression: compression
+        }));
+        o += 30 + s + exl + l;
+        tot += 76 + 2 * (s + exl) + (ms || 0) + l;
+    }
+    var out = new u8(tot + 22), oe = o, cdl = tot - o;
+    for (var i = 0; i < files.length; ++i) {
+        var f = files[i];
+        wzh(out, f.o, f, f.f, f.u, f.c.length);
+        var badd = 30 + f.f.length + exfl(f.extra);
+        out.set(f.c, f.o + badd);
+        wzh(out, o, f, f.f, f.u, f.c.length, f.o, f.m), o += 16 + badd + (f.m ? f.m.length : 0);
+    }
+    wzf(out, o, files.length, cdl, oe);
+    return out;
+}
+/**
+ * Streaming pass-through decompression for ZIP archives
+ */
+var UnzipPassThrough = /*#__PURE__*/ (function () {
+    function UnzipPassThrough() {
+    }
+    UnzipPassThrough.prototype.push = function (chunk, final) {
+        // same as ZipPassThrough: cast to retain Buffer ergonomics
+        this.ondata(null, chunk, final);
+    };
+    UnzipPassThrough.compression = 0;
+    return UnzipPassThrough;
+}());
+
+/**
+ * Streaming DEFLATE decompression for ZIP archives. Prefer AsyncZipInflate for
+ * better performance.
+ */
+var UnzipInflate = /*#__PURE__*/ (function () {
+    /**
+     * Creates a DEFLATE decompression that can be used in ZIP archives
+     */
+    function UnzipInflate() {
+        var _this = this;
+        this.i = new Inflate(function (dat, final) {
+            _this.ondata(null, dat, final);
+        });
+    }
+    UnzipInflate.prototype.push = function (chunk, final) {
+        try {
+            this.i.push(chunk, final);
+        }
+        catch (e) {
+            this.ondata(e, null, final);
+        }
+    };
+    UnzipInflate.compression = 8;
+    return UnzipInflate;
+}());
+
+/**
+ * Asynchronous streaming DEFLATE decompression for ZIP archives
+ */
+var AsyncUnzipInflate = /*#__PURE__*/ (function () {
+    /**
+     * Creates a DEFLATE decompression that can be used in ZIP archives
+     */
+    function AsyncUnzipInflate(_, sz) {
+        var _this = this;
+        if (sz < 320000) {
+            this.i = new Inflate(function (dat, final) {
+                _this.ondata(null, dat, final);
+            });
+        }
+        else {
+            this.i = new AsyncInflate(function (err, dat, final) {
+                _this.ondata(err, dat, final);
+            });
+            this.terminate = this.i.terminate;
+        }
+    }
+    AsyncUnzipInflate.prototype.push = function (chunk, final) {
+        if (this.i.terminate)
+            chunk = slc(chunk, 0);
+        this.i.push(chunk, final);
+    };
+    AsyncUnzipInflate.compression = 8;
+    return AsyncUnzipInflate;
+}());
+
+/**
+ * A ZIP archive decompression stream that emits files as they are discovered
+ */
+var Unzip = /*#__PURE__*/ (function () {
+    /**
+     * Creates a ZIP decompression stream
+     * @param cb The callback to call whenever a file in the ZIP archive is found
+     */
+    function Unzip(cb) {
+        this.onfile = cb;
+        this.k = [];
+        this.o = {
+            0: UnzipPassThrough
+        };
+        this.p = et;
+    }
+    /**
+     * Pushes a chunk to be unzipped
+     * @param chunk The chunk to push
+     * @param final Whether this is the last chunk
+     */
+    Unzip.prototype.push = function (chunk, final) {
+        var _this = this;
+        if (!this.onfile)
+            err(5);
+        if (!this.p)
+            err(4);
+        if (this.c > 0) {
+            var len = Math.min(this.c, chunk.length);
+            var toAdd = chunk.subarray(0, len);
+            this.c -= len;
+            if (this.d)
+                this.d.push(toAdd, !this.c);
+            else
+                this.k[0].push(toAdd);
+            chunk = chunk.subarray(len);
+            if (chunk.length)
+                return this.push(chunk, final);
+        }
+        else {
+            var f = 0, i = 0, is = void 0, buf = void 0;
+            if (!this.p.length)
+                buf = chunk;
+            else if (!chunk.length)
+                buf = this.p;
+            else {
+                buf = new u8(this.p.length + chunk.length);
+                buf.set(this.p), buf.set(chunk, this.p.length);
+            }
+            var l = buf.length, oc = this.c, add = oc && this.d;
+            var _loop_2 = function () {
+                var sig = b4(buf, i);
+                if (sig == 0x4034B50) {
+                    f = 1, is = i;
+                    this_1.d = null;
+                    this_1.c = 0;
+                    var bf = b2(buf, i + 6), cmp_1 = b2(buf, i + 8), u = bf & 2048, dd = bf & 8, fnl = b2(buf, i + 26), es = b2(buf, i + 28);
+                    if (l > i + 30 + fnl + es) {
+                        var chks_3 = [];
+                        this_1.k.unshift(chks_3);
+                        f = 2;
+                        var lsc = b4(buf, i + 18), lsu = b4(buf, i + 22);
+                        var fn_1 = strFromU8(buf.subarray(i + 30, i += 30 + fnl), !u);
+                        var _a = z64hs(buf, i, es, 2, lsc, lsu, 0), sc_1 = _a[0], su_1 = _a[1], z64 = _a[3];
+                        if (dd)
+                            sc_1 = -1 - z64;
+                        i += es;
+                        this_1.c = sc_1;
+                        var d_1;
+                        var file_1 = {
+                            name: fn_1,
+                            compression: cmp_1,
+                            start: function () {
+                                if (!file_1.ondata)
+                                    err(5);
+                                if (!sc_1)
+                                    file_1.ondata(null, et, true);
+                                else {
+                                    var ctr = _this.o[cmp_1];
+                                    if (!ctr)
+                                        file_1.ondata(err(14, 'unknown compression type ' + cmp_1, 1), null, false);
+                                    d_1 = sc_1 < 0 ? new ctr(fn_1) : new ctr(fn_1, sc_1, su_1);
+                                    d_1.ondata = function (err, dat, final) { file_1.ondata(err, dat, final); };
+                                    for (var _i = 0, chks_4 = chks_3; _i < chks_4.length; _i++) {
+                                        var dat = chks_4[_i];
+                                        d_1.push(dat, false);
+                                    }
+                                    if (_this.k[0] == chks_3 && _this.c)
+                                        _this.d = d_1;
+                                    else
+                                        d_1.push(et, true);
+                                }
+                            },
+                            terminate: function () {
+                                if (d_1 && d_1.terminate)
+                                    d_1.terminate();
+                            }
+                        };
+                        if (sc_1 >= 0)
+                            file_1.size = sc_1, file_1.originalSize = su_1;
+                        this_1.onfile(file_1);
+                    }
+                    return "break";
+                }
+                else if (oc) {
+                    if (sig == 0x8074B50) {
+                        is = i += 12 + (oc == -2 && 8), f = 3, this_1.c = 0;
+                        return "break";
+                    }
+                    else if (sig == 0x2014B50) {
+                        is = i -= 4, f = 3, this_1.c = 0;
+                        return "break";
+                    }
+                }
+            };
+            var this_1 = this;
+            for (; i < l - 4; ++i) {
+                var state_1 = _loop_2();
+                if (state_1 === "break")
+                    break;
+            }
+            this.p = et;
+            if (oc < 0) {
+                var dat = f ? buf.subarray(0, is - 12 - (oc == -2 && 8) - (b4(buf, is - 16) == 0x8074B50 && 4)) : buf.subarray(0, i);
+                if (add)
+                    add.push(dat, !!f);
+                else
+                    this.k[+(f == 2)].push(dat);
+            }
+            if (f & 2)
+                return this.push(buf.subarray(i), final);
+            this.p = buf.subarray(i);
+        }
+        if (final) {
+            if (this.c)
+                err(13);
+            this.p = null;
+        }
+    };
+    /**
+     * Registers a decoder with the stream, allowing for files compressed with
+     * the compression type provided to be expanded correctly
+     * @param decoder The decoder constructor
+     */
+    Unzip.prototype.register = function (decoder) {
+        this.o[decoder.compression] = decoder;
+    };
+    return Unzip;
+}());
+
+var mt = typeof queueMicrotask == 'function' ? queueMicrotask : typeof setTimeout == 'function' ? setTimeout : function (fn) { fn(); };
+function unzip(data, opts, cb) {
+    if (!cb)
+        cb = opts, opts = {};
+    if (typeof cb != 'function')
+        err(7);
+    var term = [];
+    var tAll = function () {
+        for (var i = 0; i < term.length; ++i)
+            term[i]();
+    };
+    var files = {};
+    var cbd = function (a, b) {
+        mt(function () { cb(a, b); });
+    };
+    mt(function () { cbd = cb; });
+    var e = data.length - 22;
+    for (; b4(data, e) != 0x6054B50; --e) {
+        if (!e || data.length - e > 65558) {
+            cbd(err(13, 0, 1), null);
+            return tAll;
+        }
+    }
+    ;
+    var lft = b2(data, e + 8);
+    if (lft) {
+        var c = lft;
+        var o = b4(data, e + 16);
+        var z = b4(data, e - 20) == 0x7064B50;
+        if (z) {
+            var ze = b4(data, e - 12);
+            z = b4(data, ze) == 0x6064B50;
+            if (z) {
+                c = lft = b4(data, ze + 32);
+                o = b4(data, ze + 48);
+            }
+        }
+        var fltr = opts && opts.filter;
+        var _loop_3 = function (i) {
+            var _a = zh(data, o, z), c_1 = _a[0], sc = _a[1], su = _a[2], fn = _a[3], no = _a[4], off = _a[5], b = slzh(data, off);
+            o = no;
+            var cbl = function (e, d) {
+                if (e) {
+                    tAll();
+                    cbd(e, null);
+                }
+                else {
+                    if (d)
+                        files[fn] = d;
+                    if (!--lft)
+                        cbd(null, files);
+                }
+            };
+            if (!fltr || fltr({
+                name: fn,
+                size: sc,
+                originalSize: su,
+                compression: c_1
+            })) {
+                if (!c_1)
+                    cbl(null, slc(data, b, b + sc));
+                else if (c_1 == 8) {
+                    var infl = data.subarray(b, b + sc);
+                    // Synchronously decompress under 512KB, or barely-compressed data
+                    if (su < 524288 || sc > 0.8 * su) {
+                        try {
+                            cbl(null, inflateSync(infl, { out: new u8(su) }));
+                        }
+                        catch (e) {
+                            cbl(e, null);
+                        }
+                    }
+                    else
+                        term.push(inflate(infl, { size: su }, cbl));
+                }
+                else
+                    cbl(err(14, 'unknown compression type ' + c_1, 1), null);
+            }
+            else
+                cbl(null, null);
+        };
+        for (var i = 0; i < c; ++i) {
+            _loop_3(i);
+        }
+    }
+    else
+        cbd(null, {});
+    return tAll;
+}
+/**
+ * Synchronously decompresses a ZIP archive. Prefer using `unzip` for better
+ * performance with more than one file.
+ * @param data The raw compressed ZIP file
+ * @param opts The ZIP extraction options
+ * @returns The decompressed files
+ */
+function unzipSync(data, opts) {
+    var files = {};
+    var e = data.length - 22;
+    for (; b4(data, e) != 0x6054B50; --e) {
+        if (!e || data.length - e > 65558)
+            err(13);
+    }
+    ;
+    var c = b2(data, e + 8);
+    if (!c)
+        return {};
+    var o = b4(data, e + 16);
+    var z = b4(data, e - 20) == 0x7064B50;
+    if (z) {
+        var ze = b4(data, e - 12);
+        z = b4(data, ze) == 0x6064B50;
+        if (z) {
+            c = b4(data, ze + 32);
+            o = b4(data, ze + 48);
+        }
+    }
+    var fltr = opts && opts.filter;
+    for (var i = 0; i < c; ++i) {
+        var _a = zh(data, o, z), c_2 = _a[0], sc = _a[1], su = _a[2], fn = _a[3], no = _a[4], off = _a[5], b = slzh(data, off);
+        o = no;
+        if (!fltr || fltr({
+            name: fn,
+            size: sc,
+            originalSize: su,
+            compression: c_2
+        })) {
+            if (!c_2)
+                files[fn] = slc(data, b, b + sc);
+            else if (c_2 == 8)
+                files[fn] = inflateSync(data.subarray(b, b + sc), { out: new u8(su) });
+            else
+                err(14, 'unknown compression type ' + c_2);
+        }
+    }
+    return files;
+}
+__SL.FlateErrorCode = FlateErrorCode;
+__SL.deflate = deflate;
+__SL.deflateSync = deflateSync;
+__SL.inflate = inflate;
+__SL.inflateSync = inflateSync;
+__SL.gzip = gzip;
+__SL.gzipSync = gzipSync;
+__SL.gunzip = gunzip;
+__SL.gunzipSync = gunzipSync;
+__SL.zlib = zlib;
+__SL.zlibSync = zlibSync;
+__SL.unzlib = unzlib;
+__SL.unzlibSync = unzlibSync;
+__SL.decompress = decompress;
+__SL.decompressSync = decompressSync;
+__SL.strToU8 = strToU8;
+__SL.strFromU8 = strFromU8;
+__SL.zip = zip;
+__SL.zipSync = zipSync;
+__SL.unzip = unzip;
+__SL.unzipSync = unzipSync;
+__SL.Deflate = Deflate;
+__SL.AsyncDeflate = AsyncDeflate;
+__SL.Inflate = Inflate;
+__SL.AsyncInflate = AsyncInflate;
+__SL.Gzip = Gzip;
+__SL.AsyncGzip = AsyncGzip;
+__SL.Gunzip = Gunzip;
+__SL.AsyncGunzip = AsyncGunzip;
+__SL.Zlib = Zlib;
+__SL.AsyncZlib = AsyncZlib;
+__SL.Unzlib = Unzlib;
+__SL.AsyncUnzlib = AsyncUnzlib;
+__SL.compress = gzip;
+__SL.AsyncCompress = AsyncGzip;
+__SL.compressSync = gzipSync;
+__SL.Compress = Gzip;
+__SL.Decompress = Decompress;
+__SL.AsyncDecompress = AsyncDecompress;
+__SL.DecodeUTF8 = DecodeUTF8;
+__SL.EncodeUTF8 = EncodeUTF8;
+__SL.ZipPassThrough = ZipPassThrough;
+__SL.ZipDeflate = ZipDeflate;
+__SL.AsyncZipDeflate = AsyncZipDeflate;
+__SL.Zip = Zip;
+__SL.UnzipPassThrough = UnzipPassThrough;
+__SL.UnzipInflate = UnzipInflate;
+__SL.AsyncUnzipInflate = AsyncUnzipInflate;
+__SL.Unzip = Unzip;
+})();
+
+/* src/xlsx.js */
+(function () {
+'use strict';
+const { zipSync, unzipSync, strToU8, strFromU8 } = __SL;
+const { toBytes } = __SL;
+const SERIAL_TEMPLATE_FILE = 'steam-lab-serials-template.xlsx';
+const SERIAL_TEMPLATE_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+const MAIN_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+const REL_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+const PACKAGE_REL_NS = 'http://schemas.openxmlformats.org/package/2006/relationships';
+const CONTENT_NS = 'http://schemas.openxmlformats.org/package/2006/content-types';
+
+const STUDENT_SHEET = 'Student Serials';
+const TEACHER_SHEET = 'Teacher Serials';
+const STUDENT_HEADERS = ['Full Name', 'Class', 'Serial Number', 'Username', 'Password'];
+const TEACHER_HEADERS = ['Full Name', 'Serial Number (if applicable)', 'Username', 'Password'];
+
+function xmlEscape(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function xmlUnescape(value) {
+  return String(value ?? '')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&apos;/gi, "'")
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => {
+      try { return String.fromCodePoint(parseInt(hex, 16)); } catch (_) { return ''; }
+    })
+    .replace(/&#(\d+);/g, (_, decimal) => {
+      try { return String.fromCodePoint(Number(decimal)); } catch (_) { return ''; }
+    })
+    .replace(/&amp;/gi, '&');
+}
+
+function columnName(index) {
+  let value = index + 1;
+  let name = '';
+  while (value > 0) {
+    const remainder = (value - 1) % 26;
+    name = String.fromCharCode(65 + remainder) + name;
+    value = Math.floor((value - 1) / 26);
+  }
+  return name;
+}
+
+function columnIndex(reference) {
+  const match = String(reference || '').match(/^([A-Z]+)/i);
+  if (!match) return 0;
+  let value = 0;
+  for (const char of match[1].toUpperCase()) value = value * 26 + (char.charCodeAt(0) - 64);
+  return value - 1;
+}
+
+function worksheetXml(headers, widths) {
+  const lastColumn = columnName(headers.length - 1);
+  const headerCells = headers.map((header, index) => `<c r="${columnName(index)}1" s="1" t="inlineStr"><is><t>${xmlEscape(header)}</t></is></c>`).join('');
+  const columns = widths.map((width, index) => `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`).join('');
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="${MAIN_NS}"><dimension ref="A1:${lastColumn}1"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols>${columns}</cols><sheetData><row r="1" spans="1:${headers.length}">${headerCells}</row></sheetData><autoFilter ref="A1:${lastColumn}1"/><pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/></worksheet>`;
+}
+
+function workbookXml() {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="${MAIN_NS}" xmlns:r="${REL_NS}"><sheets><sheet name="${xmlEscape(STUDENT_SHEET)}" sheetId="1" r:id="rId1"/><sheet name="${xmlEscape(TEACHER_SHEET)}" sheetId="2" r:id="rId2"/></sheets></workbook>`;
+}
+
+function workbookRelsXml() {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="${PACKAGE_REL_NS}"><Relationship Id="rId1" Type="${REL_NS}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="${REL_NS}/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="${REL_NS}/styles" Target="styles.xml"/></Relationships>`;
+}
+
+function rootRelsXml() {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="${PACKAGE_REL_NS}"><Relationship Id="rId1" Type="${REL_NS}/officeDocument" Target="xl/workbook.xml"/><Relationship Id="rId2" Type="${PACKAGE_REL_NS}/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="${REL_NS}/extended-properties" Target="docProps/app.xml"/></Relationships>`;
+}
+
+function contentTypesXml() {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="${CONTENT_NS}"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/></Types>`;
+}
+
+function stylesXml() {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="${MAIN_NS}"><fonts count="2"><font><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font><font><b/><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+}
+
+function coreXml() {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>STEAM Lab serial import template</dc:title><dc:creator>STEAM Lab Booking System</dc:creator><cp:lastModifiedBy>STEAM Lab Booking System</cp:lastModifiedBy></cp:coreProperties>`;
+}
+
+function appXml() {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>STEAM Lab Booking System</Application></Properties>`;
+}
+
+/** Returns the bytes of a real two-sheet .xlsx workbook with formatted header rows. */
+function buildSerialsTemplate() {
+  const files = {
+    '[Content_Types].xml': strToU8(contentTypesXml()),
+    '_rels/.rels': strToU8(rootRelsXml()),
+    'docProps/core.xml': strToU8(coreXml()),
+    'docProps/app.xml': strToU8(appXml()),
+    'xl/workbook.xml': strToU8(workbookXml()),
+    'xl/_rels/workbook.xml.rels': strToU8(workbookRelsXml()),
+    'xl/styles.xml': strToU8(stylesXml()),
+    'xl/worksheets/sheet1.xml': strToU8(worksheetXml(STUDENT_HEADERS, [28, 18, 22, 24, 22])),
+    'xl/worksheets/sheet2.xml': strToU8(worksheetXml(TEACHER_HEADERS, [28, 30, 24, 22]))
+  };
+  return zipSync(files, { level: 0 });
+}
+
+function parseAttrs(tag) {
+  const result = {};
+  const pattern = /([\w:.-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
+  let match;
+  while ((match = pattern.exec(tag)) !== null) result[match[1]] = xmlUnescape(match[2] !== undefined ? match[2] : match[3]);
+  return result;
+}
+
+function attr(tag, name) {
+  return parseAttrs(tag)[name] || '';
+}
+
+function entryText(entries, name) {
+  const entry = entries[name];
+  return entry ? strFromU8(entry) : '';
+}
+
+function resolveTarget(target) {
+  let cleaned = String(target || '').replace(/^\/+/, '');
+  if (!cleaned) return '';
+  const prefix = cleaned.startsWith('xl/') || cleaned.startsWith('docProps/') ? [] : ['xl'];
+  const output = [];
+  for (const part of [...prefix, ...cleaned.split('/')]) {
+    if (!part || part === '.') continue;
+    if (part === '..') output.pop();
+    else output.push(part);
+  }
+  return output.join('/');
+}
+
+function parseSharedStrings(xml) {
+  if (!xml) return [];
+  const items = xml.match(/<si\b[^>]*>[\s\S]*?<\/si>/gi) || [];
+  return items.map((item) => {
+    const texts = item.match(/<t\b[^>]*>[\s\S]*?<\/t>/gi) || [];
+    return texts.map((text) => xmlUnescape((text.match(/<t\b[^>]*>([\s\S]*?)<\/t>/i) || [])[1] || '')).join('');
+  });
+}
+
+function cellValue(attrsText, inner, sharedStrings) {
+  const attributes = parseAttrs(attrsText);
+  const type = String(attributes.t || '').toLowerCase();
+  if (type === 'inlinestr') {
+    const text = (inner.match(/<t\b[^>]*>([\s\S]*?)<\/t>/i) || [])[1];
+    return xmlUnescape(text || '');
+  }
+  const raw = (inner.match(/<v\b[^>]*>([\s\S]*?)<\/v>/i) || [])[1];
+  let value = xmlUnescape(raw || '');
+  if (type === 's') {
+    const index = Number(value);
+    value = Number.isInteger(index) && sharedStrings[index] !== undefined ? sharedStrings[index] : '';
+  } else if (type === 'b') {
+    value = value === '1' ? 'TRUE' : 'FALSE';
+  } else if (type === 'e') {
+    value = '';
+  }
+  return value;
+}
+
+function worksheetRows(xml, sharedStrings) {
+  const body = (xml.match(/<sheetData\b[^>]*>([\s\S]*?)<\/sheetData>/i) || [])[1] || '';
+  const rows = [];
+  const rowPattern = /<row\b([^>]*)>([\s\S]*?)<\/row>/gi;
+  let rowMatch;
+  while ((rowMatch = rowPattern.exec(body)) !== null) {
+    const rowNumber = Number(attr(rowMatch[1], 'r')) || rows.length + 1;
+    const cells = [];
+    let automaticIndex = 0;
+    const cellPattern = /<c\b([^>]*?)(?:\s*\/>|>([\s\S]*?)<\/c>)/gi;
+    let cellMatch;
+    while ((cellMatch = cellPattern.exec(rowMatch[2])) !== null) {
+      const reference = attr(cellMatch[1], 'r');
+      const index = reference ? columnIndex(reference) : automaticIndex;
+      while (cells.length < index) cells.push('');
+      cells[index] = cellValue(cellMatch[1], cellMatch[2] || '', sharedStrings);
+      automaticIndex = index + 1;
+    }
+    rows.push({ rowNumber, cells });
+  }
+  return rows;
+}
+
+function headerKey(value) {
+  const key = String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  if (key.includes('full name')) return 'name';
+  if (key === 'class' || key === 'class name') return 'className';
+  if (key.startsWith('serial number')) return 'serial';
+  if (key === 'username' || key === 'login name' || key === 'user name') return 'username';
+  if (key === 'password') return 'password';
+  return '';
+}
+
+function sheetRole(name) {
+  const key = String(name || '').toLowerCase().replace(/[^a-z]/g, '');
+  if (key.includes('student')) return 'student';
+  if (key.includes('teacher')) return 'teacher';
+  return null;
+}
+
+function fieldLabel(key) {
+  return key === 'name' ? 'Full Name'
+    : key === 'className' ? 'Class'
+      : key === 'serial' ? 'Serial Number'
+        : key === 'username' ? 'Username'
+          : 'Password';
+}
+
+/**
+ * Reads .xlsx bytes and returns normalised raw rows. Duplicate/DB validation is
+ * performed in serials.js so the same rules apply to forms, bulk entry, and Excel.
+ */
+function parseSerialsWorkbook(bytes) {
+  let entries;
+  try {
+    entries = unzipSync(toBytes(bytes));
+  } catch (_) {
+    throw new Error('That file is not a valid Excel .xlsx workbook.');
+  }
+  const workbookXmlText = entryText(entries, 'xl/workbook.xml');
+  if (!workbookXmlText) throw new Error('The Excel workbook is missing its workbook definition.');
+  const relationships = new Map();
+  const relationshipXml = entryText(entries, 'xl/_rels/workbook.xml.rels');
+  const relationshipPattern = /<Relationship\b([^>]*?)\/>/gi;
+  let relationshipMatch;
+  while ((relationshipMatch = relationshipPattern.exec(relationshipXml)) !== null) {
+    const id = attr(relationshipMatch[1], 'Id');
+    if (id) relationships.set(id, attr(relationshipMatch[1], 'Target'));
+  }
+  const sharedStrings = parseSharedStrings(entryText(entries, 'xl/sharedStrings.xml'));
+  const rows = [];
+  const sheets = [];
+  const sheetPattern = /<sheet\b([^>]*?)\/>/gi;
+  let sheetMatch;
+  while ((sheetMatch = sheetPattern.exec(workbookXmlText)) !== null) {
+    const sheetName = attr(sheetMatch[1], 'name');
+    const role = sheetRole(sheetName);
+    if (!role) continue;
+    const relationshipId = attr(sheetMatch[1], 'r:id') || attr(sheetMatch[1], 'id');
+    const path = resolveTarget(relationships.get(relationshipId));
+    const xml = entryText(entries, path);
+    if (!xml) throw new Error(`The ${sheetName} worksheet could not be read.`);
+    const sourceRows = worksheetRows(xml, sharedStrings);
+    const headerIndex = sourceRows.findIndex((row) => row.cells.some((cell) => String(cell).trim()));
+    if (headerIndex < 0) throw new Error(`The ${sheetName} worksheet has no header row.`);
+    const headerMap = {};
+    sourceRows[headerIndex].cells.forEach((cell, index) => {
+      const key = headerKey(cell);
+      if (key && headerMap[key] === undefined) headerMap[key] = index;
+    });
+    const required = role === 'student'
+      ? ['name', 'className', 'serial', 'username', 'password']
+      : ['name', 'username', 'password'];
+    const missing = required.filter((key) => headerMap[key] === undefined);
+    if (missing.length) throw new Error(`The ${sheetName} worksheet is missing: ${missing.map(fieldLabel).join(', ')}.`);
+    let dataRows = 0;
+    for (const row of sourceRows.slice(headerIndex + 1)) {
+      const values = row.cells.map((cell) => String(cell || '').trim());
+      if (!values.some(Boolean)) continue;
+      const value = (key) => headerMap[key] === undefined ? '' : (values[headerMap[key]] || '');
+      rows.push({
+        role,
+        sheet: sheetName,
+        rowNumber: row.rowNumber,
+        source: `${sheetName}!${row.rowNumber}`,
+        name: value('name'),
+        className: role === 'student' ? value('className') : '',
+        serial: value('serial'),
+        username: value('username'),
+        password: value('password'),
+        active: true,
+        autoApprove: false
+      });
+      dataRows += 1;
+    }
+    sheets.push({ role, name: sheetName, headerRow: sourceRows[headerIndex].rowNumber, dataRows });
+  }
+  if (!sheets.length) throw new Error('No Student Serials or Teacher Serials worksheets were found.');
+  return { rows, sheets };
+}
+__SL.SERIAL_TEMPLATE_FILE = SERIAL_TEMPLATE_FILE;
+__SL.SERIAL_TEMPLATE_MIME = SERIAL_TEMPLATE_MIME;
+__SL.buildSerialsTemplate = buildSerialsTemplate;
+__SL.parseSerialsWorkbook = parseSerialsWorkbook;
+})();
+
 /* src/db.js */
 (function () {
 'use strict';
@@ -1826,7 +4981,7 @@ const PERMANENT_ADMINS = [
   {
     id: 'acc-admin-arhatshah8149',
     role: 'admin',
-    name: 'Administrator 1',
+    name: 'ARHAT SHAH',
     loginId: 'ARHATSHAH8149',
     salt: '700d7730099c03970b620b022ad82575',
     passwordHash: '7587034d5f0d1deb6359c1969922ba3ea39f40df376507809490ff9d793a5427',
@@ -1835,7 +4990,7 @@ const PERMANENT_ADMINS = [
   {
     id: 'acc-admin-ruthvika20',
     role: 'admin',
-    name: 'Administrator 2',
+    name: 'RUTHVIKA VANKADHARA',
     loginId: 'RUTHVIKA20',
     salt: 'edb1b5eb720f483b71a2d5893648dbb2',
     passwordHash: 'a5109b7be61c9de9fb337e0c065afb248a3795b5f5c90cb6d90dc28b7c0d7224',
@@ -1857,7 +5012,6 @@ function finiteNumber(value, fallback) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
 }
-
 function normaliseSerial(value) {
   return String(value || '').trim().toUpperCase();
 }
@@ -2052,6 +5206,19 @@ function normaliseDatabase(candidate) {
     const safe = { ...account };
     delete safe.password;
     delete safe.serialBoundAt;
+    const canonicalAdmin = PERMANENT_ADMINS.find((admin) => admin.id === safe.id
+      || String(safe.loginId || '').toUpperCase() === admin.loginId.toUpperCase());
+    if (canonicalAdmin) {
+      safe.id = canonicalAdmin.id;
+      safe.name = canonicalAdmin.name;
+      safe.loginId = canonicalAdmin.loginId;
+      safe.role = 'admin';
+      safe.className = '';
+      safe.serial = null;
+      safe.serialAssignedAt = null;
+      safe.active = true;
+      safe.permanent = true;
+    }
     const assignedAt = Number(safe.serialAssignedAt || 0);
     return {
       ...safe,
@@ -2205,6 +5372,7 @@ __SL.VALID_STATUSES = VALID_STATUSES;
 __SL.ACTIVE_STATUSES = ACTIVE_STATUSES;
 __SL.VALID_PRIORITIES = VALID_PRIORITIES;
 __SL.PERMANENT_ADMINS = PERMANENT_ADMINS;
+__SL.normaliseSerial = normaliseSerial;
 __SL.publicAccount = publicAccount;
 __SL.createAccountRecord = createAccountRecord;
 __SL.createFactoryDatabase = createFactoryDatabase;
@@ -2227,6 +5395,244 @@ __SL.serialFormat = serialFormat;
 __SL.nextSerialCodes = nextSerialCodes;
 })();
 
+/* src/serials.js */
+(function () {
+'use strict';
+const { hashPassword, makeSalt, PASSWORD_HASH_ITERATIONS, makeId } = __SL;
+const { normaliseSerial, createAccountRecord, findAccountById, findSerial, publicAccount } = __SL;
+function serialPattern(role) {
+  return role === 'student' ? /^STU-\d{4}$/ : /^T-\d{4}$/;
+}
+
+function safeRole(value) {
+  return value === 'teacher' ? 'teacher' : 'student';
+}
+
+function appendActivity(db, actor, action, detail, now) {
+  if (!Array.isArray(db.activity)) db.activity = [];
+  db.activity.push({
+    id: makeId('act'),
+    at: now,
+    actor: actor && actor.id ? actor.id : 'system',
+    actorName: actor && (actor.name || actor.loginId) ? (actor.name || actor.loginId) : 'system',
+    action,
+    detail
+  });
+  db.activity = db.activity.slice(-100);
+}
+
+/** Username is always read from its own field; it is never derived from full name. */
+function normaliseSerialRecord(raw, role) {
+  const safe = safeRole(role);
+  return {
+    role: safe,
+    name: String(raw.name || '').trim(),
+    className: safe === 'student' ? String(raw.className || '').trim() : '',
+    serial: normaliseSerial(raw.serial),
+    username: String(raw.username ?? raw.loginId ?? '').trim(),
+    password: String(raw.password || ''),
+    active: raw.active !== false,
+    autoApprove: safe === 'student' && Boolean(raw.autoApprove),
+    accountId: String(raw.accountId || '') || null,
+    source: String(raw.source || ''),
+    rowNumber: Number(raw.rowNumber) || null
+  };
+}
+function validateSerialRecord(db, record, role, currentAccountId = null, mode = 'create') {
+  const safe = safeRole(role);
+  const errors = {};
+  if (!record.name) errors.name = safe === 'student' ? 'Enter the student’s full name.' : 'Enter the teacher’s full name.';
+  if (safe === 'student' && !record.className) errors.className = 'Enter the student’s class.';
+  if (!record.username) errors.username = 'Enter a username.';
+  else if (record.username.length > 64 || /[\u0000-\u001f\u007f]/.test(record.username)) errors.username = 'Use a username without control characters (64 characters maximum).';
+  if ((mode === 'create' || record.password) && record.password.length < 6) {
+    errors.password = mode === 'create'
+      ? 'Use at least 6 characters for the password.'
+      : 'Use at least 6 characters, or leave blank to keep the current password.';
+  }
+  if (record.password.length > 128) errors.password = 'Use 128 characters or fewer for the password.';
+
+  if (record.username && !errors.username) {
+    const duplicate = db.accounts.some((account) => account.id !== currentAccountId
+      && String(account.loginId || '').toLowerCase() === record.username.toLowerCase());
+    if (duplicate) errors.username = 'That username is already used by another account.';
+  }
+
+  if (safe === 'student' && !record.serial) errors.serial = 'Enter a unique student serial number.';
+  if (record.serial) {
+    if (!serialPattern(safe).test(record.serial)) {
+      errors.serial = safe === 'student'
+        ? 'Student serial numbers use STU-####.'
+        : 'Teacher serial numbers use T-####, or leave the field blank.';
+    } else {
+      const duplicateAccount = db.accounts.some((account) => account.id !== currentAccountId
+        && normaliseSerial(account.serial) === record.serial);
+      const existing = findSerial(db, record.serial);
+      if (duplicateAccount) errors.serial = 'That serial number is already assigned to another account.';
+      else if (existing && existing.role !== safe) errors.serial = `That serial belongs to a ${existing.role} account.`;
+      else if (existing && existing.assignedTo && existing.assignedTo !== currentAccountId) errors.serial = 'That serial number is already assigned to another account.';
+    }
+  }
+  return errors;
+}
+function safeSerialRow(row) {
+  const { password, ...safe } = row;
+  return safe;
+}
+function prepareSerialRows(db, inputRows) {
+  const usernameOwners = new Map();
+  const serialOwners = new Map();
+  const rows = (Array.isArray(inputRows) ? inputRows : []).map((raw, index) => {
+    const role = safeRole(raw.role);
+    const record = normaliseSerialRecord(raw, role);
+    const errors = validateSerialRecord(db, record, role, record.accountId, 'create');
+    const label = record.source || `row ${index + 1}`;
+    if (record.username && !errors.username) {
+      const key = record.username.toLowerCase();
+      if (usernameOwners.has(key)) errors.username = `Duplicate username in this import/batch (${usernameOwners.get(key)}).`;
+      else usernameOwners.set(key, label);
+    }
+    if (record.serial && !errors.serial) {
+      if (serialOwners.has(record.serial)) errors.serial = `Duplicate serial number in this import/batch (${serialOwners.get(record.serial)}).`;
+      else serialOwners.set(record.serial, label);
+    }
+    return {
+      ...record,
+      errors,
+      valid: Object.keys(errors).length === 0,
+      errorText: Object.values(errors).join(' ')
+    };
+  });
+  return {
+    rows,
+    total: rows.length,
+    validCount: rows.filter((row) => row.valid).length,
+    invalidCount: rows.filter((row) => !row.valid).length
+  };
+}
+
+/** Removes any serial record linked to this account, then creates/updates the new one. */
+function syncSerialRecord(db, account, code, now) {
+  const oldCode = normaliseSerial(account.serial);
+  const newCode = normaliseSerial(code);
+  if (oldCode && oldCode !== newCode) {
+    db.serials = db.serials.filter((serial) => !(normaliseSerial(serial.code) === oldCode && serial.assignedTo === account.id));
+  }
+  if (!newCode) {
+    account.serial = null;
+    account.serialAssignedAt = null;
+    return null;
+  }
+  let record = findSerial(db, newCode);
+  if (!record) {
+    record = { code: newCode, role: account.role, status: 'assigned', assignedTo: account.id, assignedAt: now, createdAt: now };
+    db.serials.push(record);
+  }
+  record.code = newCode;
+  record.role = account.role;
+  record.status = 'assigned';
+  record.assignedTo = account.id;
+  record.assignedAt = now;
+  record.createdAt = Number(record.createdAt) || now;
+  account.serial = newCode;
+  account.serialAssignedAt = now;
+  return record;
+}
+function createSerialRecord(db, raw, role, actor, now = Date.now()) {
+  const safe = safeRole(role);
+  const record = normaliseSerialRecord(raw, safe);
+  const errors = validateSerialRecord(db, record, safe, null, 'create');
+  if (Object.keys(errors).length) return { ok: false, errors };
+  const account = createAccountRecord({
+    role: safe,
+    name: record.name,
+    className: record.className,
+    loginId: record.username,
+    password: record.password,
+    serial: record.serial,
+    active: record.active,
+    autoApprove: record.autoApprove,
+    permanent: false
+  }, now);
+  db.accounts.push(account);
+  syncSerialRecord(db, account, record.serial, now);
+  appendActivity(db, actor, 'serial-create', `Created ${safe} serial record and login account for ${account.loginId}.`, now);
+  return { ok: true, errors: {}, account: publicAccount(account), serial: account.serial };
+}
+function updateSerialRecord(db, accountId, raw, role, actor, now = Date.now()) {
+  const safe = safeRole(role);
+  const account = findAccountById(db, accountId);
+  if (!account) return { ok: false, errors: { general: 'That serial record no longer exists.' } };
+  if (account.permanent || account.role === 'admin') return { ok: false, errors: { general: 'Administrator accounts are not managed as serial records.' } };
+  if (account.role !== safe) return { ok: false, errors: { general: 'Use the matching Student Serials or Teacher Serials section.' } };
+  const record = normaliseSerialRecord(raw, safe);
+  const errors = validateSerialRecord(db, record, safe, account.id, 'edit');
+  if (Object.keys(errors).length) return { ok: false, errors };
+  account.name = record.name;
+  account.className = record.className;
+  account.loginId = record.username;
+  account.active = record.active;
+  account.autoApprove = record.autoApprove;
+  if (record.password) {
+    account.salt = makeSalt();
+    account.passwordHash = hashPassword(record.password, account.salt, PASSWORD_HASH_ITERATIONS);
+    account.hashIterations = PASSWORD_HASH_ITERATIONS;
+    account.passwordUpdatedAt = now;
+  }
+  syncSerialRecord(db, account, record.serial, now);
+  appendActivity(db, actor, 'serial-update', `Updated ${safe} serial record and login account for ${account.loginId}.`, now);
+  return { ok: true, errors: {}, account: publicAccount(account), serial: account.serial };
+}
+function deleteSerialRecord(db, accountId, actor, now = Date.now()) {
+  const account = findAccountById(db, accountId);
+  if (!account) return { ok: false, errors: { general: 'That serial record no longer exists.' } };
+  if (account.permanent || account.role === 'admin') return { ok: false, errors: { general: 'Administrator accounts are not managed as serial records.' } };
+  const oldSerial = normaliseSerial(account.serial) || null;
+  db.serials = db.serials.filter((serial) => !(serial.assignedTo === account.id
+    || (oldSerial && normaliseSerial(serial.code) === oldSerial)));
+  db.accounts = db.accounts.filter((entry) => entry.id !== account.id);
+  appendActivity(db, actor, 'serial-delete', `Deleted the ${account.role} serial record and linked login account for ${account.loginId}. Existing requests were kept.`, now);
+  return { ok: true, errors: {}, account: publicAccount(account), serial: oldSerial };
+}
+function applySerialRows(db, inputRows, actor, now = Date.now()) {
+  const preview = prepareSerialRows(db, inputRows);
+  const created = [];
+  const failed = [];
+  for (const row of preview.rows) {
+    if (!row.valid) {
+      failed.push({ ...safeSerialRow(row), status: 'error', reason: row.errorText || 'Incomplete record.' });
+      continue;
+    }
+    try {
+      const result = createSerialRecord(db, row, row.role, actor, now);
+      if (!result.ok) throw new Error(Object.values(result.errors).join(' ') || 'Record could not be created.');
+      created.push(result.account);
+      failed.push({ ...safeSerialRow(row), status: 'created', reason: 'Created and linked.', accountId: result.account.id });
+    } catch (error) {
+      failed.push({ ...safeSerialRow(row), status: 'error', reason: error && error.message ? error.message : 'Record could not be created.' });
+    }
+  }
+  return {
+    ok: created.length > 0,
+    successful: created.length,
+    unsuccessful: preview.invalidCount + (failed.filter((row) => row.status === 'error').length - preview.invalidCount),
+    total: preview.total,
+    created,
+    report: failed,
+    rows: preview.rows.map(safeSerialRow)
+  };
+}
+__SL.normaliseSerialRecord = normaliseSerialRecord;
+__SL.validateSerialRecord = validateSerialRecord;
+__SL.safeSerialRow = safeSerialRow;
+__SL.prepareSerialRows = prepareSerialRows;
+__SL.syncSerialRecord = syncSerialRecord;
+__SL.createSerialRecord = createSerialRecord;
+__SL.updateSerialRecord = updateSerialRecord;
+__SL.deleteSerialRecord = deleteSerialRecord;
+__SL.applySerialRows = applySerialRows;
+})();
+
 /* src/api.js */
 (function () {
 'use strict';
@@ -2234,6 +5640,8 @@ const { formatDateTime, formatDate, formatTime, formatDuration, formatLongWeekda
 const { DEFAULT_SETTINGS, VALID_PRIORITIES, ACTIVE_STATUSES, PERMANENT_ADMINS, getDb, commitDb, replaceDb, resetToFactoryDatabase, findAccountById, findAccountByLogin, findRequestById, findSerial, makeRequestCode, nextSerialCodes, createAccountRecord, validateDatabase, serialFormat, publicAccount } = __SL;
 const { estimateFromFile, isSupportedUpload, getExtension, MODEL_EXTENSIONS, IMAGE_EXTENSIONS } = __SL;
 const { scheduleRequests } = __SL;
+const { SERIAL_TEMPLATE_FILE, SERIAL_TEMPLATE_MIME, buildSerialsTemplate, parseSerialsWorkbook } = __SL;
+const { prepareSerialRows, applySerialRows, createSerialRecord: createSerialRecordPure, updateSerialRecord: updateSerialRecordPure, deleteSerialRecord: deleteSerialRecordPure } = __SL;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const STATUS_LABELS = {
   pending: 'Pending review',
@@ -2888,6 +6296,84 @@ function deleteAccount(id, actor, now = Date.now()) {
   commitDb();
   return { ok: true, errors: {} };
 }
+function serialsTemplate(actor) {
+  requireAdmin(actor);
+  return {
+    fileName: SERIAL_TEMPLATE_FILE,
+    mime: SERIAL_TEMPLATE_MIME,
+    bytes: buildSerialsTemplate()
+  };
+}
+function previewSerialsWorkbook(bytes, actor) {
+  requireAdmin(actor);
+  const parsed = parseSerialsWorkbook(bytes);
+  const preview = prepareSerialRows(getDb(), parsed.rows);
+  return { ...preview, sheets: parsed.sheets };
+}
+function importSerialRows(rows, actor, now = Date.now()) {
+  const admin = requireAdmin(actor);
+  const db = getDb();
+  const result = applySerialRows(db, Array.isArray(rows) ? rows : [], admin, now);
+  commitDb();
+  return result;
+}
+function bulkCreateSerialRows(rows, role, actor, now = Date.now()) {
+  const admin = requireAdmin(actor);
+  const safeRole = role === 'teacher' ? 'teacher' : 'student';
+  const db = getDb();
+  const result = applySerialRows(db, (Array.isArray(rows) ? rows : []).map((row) => ({ ...row, role: safeRole })), admin, now);
+  commitDb();
+  return { ...result, role: safeRole };
+}
+function createSerialEntry(raw, role, actor, now = Date.now()) {
+  const admin = requireAdmin(actor);
+  const db = getDb();
+  const result = createSerialRecordPure(db, raw, role, admin, now);
+  if (result.ok) commitDb();
+  return result;
+}
+function updateSerialEntry(id, raw, role, actor, now = Date.now()) {
+  const admin = requireAdmin(actor);
+  const db = getDb();
+  const result = updateSerialRecordPure(db, id, raw, role, admin, now);
+  if (result.ok) commitDb();
+  return result;
+}
+function deleteSerialEntry(id, actor, now = Date.now()) {
+  const admin = requireAdmin(actor);
+  const db = getDb();
+  const result = deleteSerialRecordPure(db, id, admin, now);
+  if (result.ok) commitDb();
+  return result;
+}
+function changeOwnPassword(payload, actor, now = Date.now()) {
+  const session = requireSession(actor);
+  if (!['student', 'teacher'].includes(session.role)) {
+    throw new Error('Only student and teacher accounts can change their own password here.');
+  }
+  const db = getDb();
+  const account = findAccountById(db, session.id);
+  if (!account) throw new Error('The signed-in account no longer exists.');
+  const currentPassword = String(payload.currentPassword || '');
+  const newPassword = String(payload.newPassword || '');
+  const confirmPassword = String(payload.confirmPassword || '');
+  const errors = {};
+  if (!currentPassword) errors.currentPassword = 'Enter your current password.';
+  if (!newPassword) errors.newPassword = 'Enter a new password.';
+  else if (newPassword.length < 6) errors.newPassword = 'Use at least 6 characters for the new password.';
+  else if (newPassword.length > 128) errors.newPassword = 'Use 128 characters or fewer for the new password.';
+  if (!confirmPassword) errors.confirmPassword = 'Confirm the new password.';
+  else if (newPassword !== confirmPassword) errors.confirmPassword = 'The new password and confirmation do not match.';
+  if (currentPassword && !verifyPassword(currentPassword, account)) errors.currentPassword = 'Current password is incorrect.';
+  if (Object.keys(errors).length) return { ok: false, errors };
+  account.salt = makeSalt();
+  account.passwordHash = hashPassword(newPassword, account.salt, PASSWORD_HASH_ITERATIONS);
+  account.hashIterations = PASSWORD_HASH_ITERATIONS;
+  account.passwordUpdatedAt = now;
+  addActivity(db, session, 'password', `${session.name} changed their own password.`, now);
+  commitDb();
+  return { ok: true, errors: {}, account: publicAccount(account) };
+}
 function generateSerials(raw, actor, now = Date.now()) {
   const admin = requireAdmin(actor);
   const db = getDb();
@@ -3136,7 +6622,8 @@ function exportRequestsCsv(db) {
   ]);
   return [header, ...rows].map((row) => row.map(csvEscape).join(',')).join('\r\n');
 }
-function exportSerialsCsv(db) {
+function exportSerialsCsv(db, actor) {
+  requireAdmin(actor);
   const header = ['Serial', 'Role', 'Status', 'Assigned to', 'Assigned at'];
   const rows = db.serials.map((serial) => {
     const account = serial.assignedTo ? findAccountById(db, serial.assignedTo) : null;
@@ -3279,6 +6766,14 @@ __SL.rerunScheduler = rerunScheduler;
 __SL.createAccount = createAccount;
 __SL.updateAccount = updateAccount;
 __SL.deleteAccount = deleteAccount;
+__SL.serialsTemplate = serialsTemplate;
+__SL.previewSerialsWorkbook = previewSerialsWorkbook;
+__SL.importSerialRows = importSerialRows;
+__SL.bulkCreateSerialRows = bulkCreateSerialRows;
+__SL.createSerialEntry = createSerialEntry;
+__SL.updateSerialEntry = updateSerialEntry;
+__SL.deleteSerialEntry = deleteSerialEntry;
+__SL.changeOwnPassword = changeOwnPassword;
 __SL.generateSerials = generateSerials;
 __SL.assignSerial = assignSerial;
 __SL.validateSettingsInput = validateSettingsInput;
@@ -3555,7 +7050,7 @@ __SL.runSelfTest = runSelfTest;
 'use strict';
 const { DB_KEY, getStorageNotice, stateRemove, clearFiles, downloadBlob, downloadText, escapeHtml, formatDateTime, formatDate, formatTime, formatDuration, formatLongWeekday, makeId, readFileBytes } = __SL;
 const { getDb, commitDb, DEFAULT_SETTINGS, findAccountById, findRequestById, findSerial } = __SL;
-const { bootstrap, ensureSeedFiles, getSessionAccount, login, logout, submitRequest, previewEstimate, getRequestFile, reestimateFromFile, approveRequest, rejectRequest, confirmSlot, startPrint, markPrinted, handOver, cancelRequest, rerunScheduler, createAccount, updateAccount, deleteAccount, generateSerials, assignSerial, updateSettings, resetSettings, computeReports, buildScheduleBoard, exportRequestsCsv, exportSerialsCsv, exportReportCsv, exportBackup, parseBackupText, importBackup, resetFactoryData, STATUS_LABELS, PRIORITY_LABELS, MATERIALS, scheduleText, statusText, effectiveMinutes, getUploadExtensionsText, fileSizeLabel, decodeBackupBytes } = __SL;
+const { bootstrap, ensureSeedFiles, getSessionAccount, login, logout, submitRequest, previewEstimate, getRequestFile, reestimateFromFile, approveRequest, rejectRequest, confirmSlot, startPrint, markPrinted, handOver, cancelRequest, rerunScheduler, assignSerial, updateSettings, resetSettings, computeReports, buildScheduleBoard, exportRequestsCsv, exportSerialsCsv, exportReportCsv, exportBackup, parseBackupText, importBackup, resetFactoryData, createSerialEntry, updateSerialEntry, deleteSerialEntry, bulkCreateSerialRows, serialsTemplate, previewSerialsWorkbook, importSerialRows, changeOwnPassword, STATUS_LABELS, PRIORITY_LABELS, MATERIALS, scheduleText, statusText, effectiveMinutes, getUploadExtensionsText, fileSizeLabel, decodeBackupBytes } = __SL;
 const { MODEL_EXTENSIONS, IMAGE_EXTENSIONS } = __SL;
 const { runSelfTest } = __SL;
 const esc = escapeHtml;
@@ -3621,8 +7116,20 @@ function makeDraft() {
   };
 }
 
-function makeAccountForm() {
-  return { name: '', role: 'student', className: '', loginId: '', password: '', serial: '', active: true, autoApprove: false };
+function makeSerialForm(role = 'student') {
+  return { name: '', className: '', serial: '', username: '', password: '', active: true, autoApprove: false, role };
+}
+
+function makeBulkSerialRow(role = 'student', index = 1) {
+  return { id: makeId('bulk'), ...makeSerialForm(role), source: `Bulk row ${index}`, rowNumber: index };
+}
+
+function makeBulkSerialRows(role = 'student', count = 2) {
+  return Array.from({ length: count }, (_, index) => makeBulkSerialRow(role, index + 1));
+}
+
+function blankPasswordForm() {
+  return { currentPassword: '', newPassword: '', confirmPassword: '' };
 }
 
 function makeSettingsForm(settings) {
@@ -3656,13 +7163,36 @@ const state = {
   draft: makeDraft(),
   lastSubmission: null,
   confirm: null,
-  editAccountId: null,
-  accountForm: makeAccountForm(),
   settingsForm: makeSettingsForm(DEFAULT_SETTINGS),
   backupFile: null,
   backupFileName: '',
-  toasts: []
+  toasts: [],
+  serialMode: 'student',
+  serialFormOpen: false,
+  serialEditId: null,
+  serialForm: makeSerialForm('student'),
+  bulkSerialRows: makeBulkSerialRows('student', 2),
+  bulkReport: null,
+  excelFile: null,
+  excelFileName: '',
+  excelPreview: null,
+  excelReport: null,
+  passwordChangeOpen: false,
+  passwordForm: blankPasswordForm()
 };
+
+function resetSerialWorkspace(role = 'student') {
+  state.serialMode = role === 'teacher' ? 'teacher' : 'student';
+  state.serialFormOpen = false;
+  state.serialEditId = null;
+  state.serialForm = makeSerialForm(state.serialMode);
+  state.bulkSerialRows = makeBulkSerialRows(state.serialMode, 2);
+  state.bulkReport = null;
+  state.excelFile = null;
+  state.excelFileName = '';
+  state.excelPreview = null;
+  state.excelReport = null;
+}
 
 let fatalError = null;
 let bootstrapped = false;
@@ -3681,8 +7211,7 @@ const VIEW_META = {
   'admin-schedule': { title: 'Schedule board', subtitle: 'Full visibility of booked blocks and cool-down gaps.' },
   'admin-requests': { title: 'All requests', subtitle: 'Search, filter, and run the print workflow.' },
   'admin-new-request': { title: 'Submit on behalf of a student', subtitle: 'Create a real student request using the same upload and estimator.' },
-  'admin-accounts': { title: 'Accounts', subtitle: 'Create student and teacher accounts, edit usernames and passwords, and assign class and serial details.' },
-  'admin-serials': { title: 'Serial numbers', subtitle: 'Bulk-generate serials and see free versus assigned codes.' },
+  'admin-serials': { title: 'Serial numbers', subtitle: 'Create, bulk-add, import, edit, delete, and export linked serial records and accounts.' },
   'admin-settings': { title: 'Lab settings', subtitle: 'Lab hours, capacity, lead time, upload limits, and build volume.' },
   'admin-data': { title: 'Data & backup', subtitle: 'Export JSON and CSV, import a validated backup, or restore the two permanent administrator accounts.' }
 };
@@ -3704,7 +7233,6 @@ const NAV = {
     { view: 'admin-schedule', label: 'Schedule board', icon: 'calendar' },
     { view: 'admin-requests', label: 'All requests', icon: 'list' },
     { view: 'admin-new-request', label: 'New request', icon: 'upload' },
-    { view: 'admin-accounts', label: 'Accounts', icon: 'users' },
     { view: 'admin-serials', label: 'Serials', icon: 'key' },
     { view: 'admin-settings', label: 'Lab settings', icon: 'settings' },
     { view: 'admin-data', label: 'Data & backup', icon: 'database' }
@@ -3986,6 +7514,26 @@ function renderConfirmBar() {
     </div>`;
 }
 
+function renderPasswordChangeForm() {
+  const form = state.passwordForm;
+  return `
+    <div class="card soft" style="margin-top:16px" data-testid="password-change-panel">
+      <div class="card-header"><div><h3>Change password</h3><p>Your registered name, class, serial number, and username stay read-only.</p></div></div>
+      <form data-form="change-password" data-testid="password-change-form" novalidate>
+        <div class="form-grid">
+          <div class="form-field"><label for="current-password">Current Password</label><input id="current-password" name="currentPassword" type="password" value="${esc(form.currentPassword)}" autocomplete="current-password">${fieldError('currentPassword')}</div>
+          <div class="form-field"><label for="new-password">New Password</label><input id="new-password" name="newPassword" type="password" value="${esc(form.newPassword)}" autocomplete="new-password">${fieldError('newPassword')}</div>
+          <div class="form-field"><label for="confirm-password">Confirm New Password</label><input id="confirm-password" name="confirmPassword" type="password" value="${esc(form.confirmPassword)}" autocomplete="new-password">${fieldError('confirmPassword')}</div>
+          <div class="form-field span-2">${fieldError('general')}</div>
+        </div>
+        <div class="btn-row" style="margin-top:16px">
+          <button class="btn primary" type="button" data-action="submit-form" data-form-kind="change-password" data-testid="save-password">${icon('save', 17)} Save new password</button>
+          <button class="btn" type="button" data-action="cancel-password-change">Cancel</button>
+        </div>
+      </form>
+    </div>`;
+}
+
 function renderAccountIdentity(account) {
   const roleLabel = account.role === 'student' ? 'Student' : account.role === 'teacher' ? 'Teacher' : 'Administrator';
   const fourth = account.role === 'student'
@@ -3993,11 +7541,12 @@ function renderAccountIdentity(account) {
     : account.role === 'teacher'
       ? metric('Issued serial', account.serial || 'Not required', 'Optional lab record')
       : metric('Account scope', 'All registered users', 'Full administrator access');
+  const passwordAction = account.role === 'admin' ? '' : `<button class="btn small" type="button" data-action="open-password-change" data-testid="open-password-change">${icon('key', 16)} Change password</button>`;
   return `
     <section class="card" data-testid="account-identity">
       <div class="card-header">
         <div><h2>Registered account</h2><p>These details come directly from the account created by an administrator and are read-only here.</p></div>
-        <span class="badge neutral">${esc(roleLabel)}</span>
+        <div class="btn-row"><span class="badge neutral">${esc(roleLabel)}</span>${passwordAction}</div>
       </div>
       <div class="grid-4">
         ${metric('Full name', account.name, 'Registered identity')}
@@ -4005,6 +7554,7 @@ function renderAccountIdentity(account) {
         ${account.role === 'student' ? metric('Class', account.className || 'Not recorded', 'Assigned by administrator') : metric('Role', roleLabel, 'Account permission')}
         ${fourth}
       </div>
+      ${state.passwordChangeOpen && account.role !== 'admin' ? renderPasswordChangeForm() : ''}
     </section>`;
 }
 
@@ -4041,7 +7591,6 @@ function renderView() {
     case 'admin-requests': return renderAllRequests();
     case 'admin-reports': return renderAdminReports();
     case 'admin-new-request': return renderAdminNewRequest();
-    case 'admin-accounts': return renderAdminAccounts();
     case 'admin-serials': return renderAdminSerials();
     case 'admin-settings': return renderAdminSettings();
     case 'admin-data': return renderAdminData();
@@ -4449,117 +7998,245 @@ function renderSchedule() {
     </section>`;
 }
 
-function renderAdminAccounts() {
-  const db = getDb();
-  const form = state.accountForm;
-  const editing = Boolean(state.editAccountId);
-  const role = form.role;
-  const nameLabel = role === 'student' ? 'Student’s full name' : role === 'teacher' ? 'Teacher’s full name' : 'Administrator display name';
-  const classField = role === 'student' ? `
-    <div class="form-field"><label for="account-className">Class</label><input id="account-className" name="className" data-account-field type="text" value="${esc(form.className)}" placeholder="Class or form">${fieldError('className')}</div>` : '';
-  const serialField = role === 'student' ? `
-    <div class="form-field"><label for="account-serial">Student serial number</label><input id="account-serial" name="serial" data-account-field type="text" value="${esc(form.serial)}" placeholder="Unique STU-#### serial">${fieldError('serial')}</div>` : '';
+function serialModeCards(mode) {
   return `
-    <section class="grid-4" style="margin-bottom:20px">
-      ${metric('Accounts', db.accounts.length, 'All registered users')}
-      ${metric('Students', db.accounts.filter((account) => account.role === 'student').length, 'Created by an administrator')}
-      ${metric('Teachers', db.accounts.filter((account) => account.role === 'teacher').length, 'Review and workflow')}
-      ${metric('Admins', db.accounts.filter((account) => account.role === 'admin').length, 'Full access')}
-    </section>
-    <section class="card">
-      <div class="card-header"><div><h2>${editing ? 'Edit account' : 'Create account'}</h2><p>Passwords are stored as salted hashes and are never displayed. Usernames and student serial numbers must be unique.</p></div></div>
-      <form data-form="accounts" data-testid="account-form" novalidate>
-        <div class="form-grid">
-          <div class="form-field"><label for="account-name">${esc(nameLabel)}</label><input id="account-name" name="name" data-account-field type="text" value="${esc(form.name)}">${fieldError('name')}</div>
-          <div class="form-field"><label for="account-role">Role</label><select id="account-role" name="role" data-account-field>${['student', 'teacher', 'admin'].map((option) => `<option value="${esc(option)}"${selected(role, option)}>${esc(option)}</option>`).join('')}</select>${fieldError('role')}</div>
-          ${classField}
-          <div class="form-field"><label for="account-loginId">Username</label><input id="account-loginId" name="loginId" data-account-field type="text" value="${esc(form.loginId)}">${fieldError('loginId')}</div>
-          <div class="form-field"><label for="account-password">${editing ? 'New password (blank keeps current)' : 'Password'}</label><input id="account-password" name="password" data-account-field type="password" value="${esc(form.password)}" autocomplete="new-password">${fieldError('password')}</div>
-          ${serialField}
-          <div class="form-field">
-            <label>Account options</label>
-            <div class="checkbox-row" style="padding-top:10px">
-              <label><input type="checkbox" name="active" data-account-field${checked(form.active)}> Active</label>
-              <label><input type="checkbox" name="autoApprove" data-account-field${checked(form.autoApprove)}${role === 'student' ? '' : ' disabled'}> Auto-approve student jobs</label>
-            </div>
+    <section class="serial-mode-grid" aria-label="Serial management options">
+      <button class="serial-mode-card ${mode === 'student' ? 'selected' : ''}" type="button" data-action="serial-mode" data-mode="student" data-testid="serial-mode-student">
+        <span class="serial-mode-icon">${icon('student', 30)}</span>
+        <span><strong>Student Serials</strong><small>Full name, class, serial number, username, and password.</small></span>
+      </button>
+      <button class="serial-mode-card ${mode === 'teacher' ? 'selected' : ''}" type="button" data-action="serial-mode" data-mode="teacher" data-testid="serial-mode-teacher">
+        <span class="serial-mode-icon">${icon('teacher', 30)}</span>
+        <span><strong>Teacher Serials</strong><small>Full name, optional serial number, username, and password.</small></span>
+      </button>
+    </section>`;
+}
+
+function renderSerialForm(mode, editing) {
+  const form = state.serialForm;
+  const title = mode === 'student' ? 'Student' : 'Teacher';
+  const classField = mode === 'student' ? `
+    <div class="form-field"><label for="serial-className">Class</label><input id="serial-className" name="className" data-serial-field type="text" value="${esc(form.className)}" placeholder="Class or form">${fieldError('className')}</div>` : '';
+  const serialLabel = mode === 'student' ? 'Student Serial Number' : 'Teacher Serial Number (if applicable)';
+  const serialPlaceholder = mode === 'student' ? 'Unique STU-#### serial' : 'Optional T-#### serial';
+  const autoApprove = mode === 'student' ? `<label><input type="checkbox" name="autoApprove" data-serial-field${checked(form.autoApprove)}> Auto-approve student jobs</label>` : '';
+  return `
+    <form data-form="serial-record" data-testid="serial-form" data-role="${esc(mode)}" novalidate>
+      <div class="form-grid">
+        <div class="form-field"><label for="serial-name">${title} Full Name</label><input id="serial-name" name="name" data-serial-field type="text" value="${esc(form.name)}" autocomplete="off">${fieldError('name')}</div>
+        ${classField}
+        <div class="form-field"><label for="serial-code">${serialLabel}</label><input id="serial-code" name="serial" data-serial-field type="text" value="${esc(form.serial)}" placeholder="${serialPlaceholder}">${fieldError('serial')}</div>
+        <div class="form-field"><label for="serial-username">Username</label><input id="serial-username" name="username" data-serial-field type="text" value="${esc(form.username)}" autocomplete="off">${fieldError('username')}</div>
+        <div class="form-field"><label for="serial-password">${editing ? 'New password (blank keeps current)' : 'Password'}</label><input id="serial-password" name="password" data-serial-field type="password" value="${esc(form.password)}" autocomplete="new-password">${fieldError('password')}</div>
+        <div class="form-field">
+          <label>Account options</label>
+          <div class="checkbox-row" style="padding-top:10px">
+            <label><input type="checkbox" name="active" data-serial-field${checked(form.active)}> Active</label>
+            ${autoApprove}
           </div>
-          <div class="form-field span-2">${fieldError('general')}</div>
         </div>
-        <div class="btn-row" style="margin-top:18px">
-          <button class="btn primary" type="button" data-action="submit-form" data-form-kind="accounts" data-testid="save-account">${icon('save', 17)} ${editing ? 'Save changes' : 'Create account'}</button>
-          ${editing ? `<button class="btn" type="button" data-action="cancel-edit">Cancel edit</button>` : ''}
-          <button class="btn" type="button" data-action="nav" data-view="admin-serials">${icon('key', 17)} Generate serials</button>
+        <div class="form-field span-2">${fieldError('general')}</div>
+      </div>
+      <div class="btn-row" style="margin-top:18px">
+        <button class="btn primary" type="button" data-action="submit-form" data-form-kind="serial-record" data-testid="save-serial">${icon('save', 17)} ${editing ? 'Save changes' : `Save ${title} serial`}</button>
+        <button class="btn" type="button" data-action="cancel-serial-form">Cancel</button>
+      </div>
+    </form>`;
+}
+
+function serialRecordsHtml(db, mode) {
+  const accounts = db.accounts.filter((account) => account.role === mode && !account.permanent);
+  if (!accounts.length) {
+    return emptyState(`No ${mode} serial records`, `Use + Add ${mode === 'student' ? 'Student' : 'Teacher'} Serial, bulk entry, or Excel import to create linked records.`, 'key');
+  }
+  return `
+    <div class="table-wrap"><table>
+      <thead><tr><th>Full name</th>${mode === 'student' ? '<th>Class</th>' : ''}<th>Serial number</th><th>Username</th><th>Linked account</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>${accounts.map((account) => {
+        const record = account.serial ? findSerial(db, account.serial) : null;
+        return `<tr data-testid="serial-record" data-login-id="${esc(account.loginId)}" data-serial="${esc(account.serial || '')}">
+          <td><strong>${esc(account.name)}</strong><small>Created ${esc(formatDate(account.createdAt))}</small></td>
+          ${mode === 'student' ? `<td>${esc(account.className || '—')}</td>` : ''}
+          <td>${account.serial ? `<strong>${esc(account.serial)}</strong><small>${record ? esc(record.status) : 'untracked'}</small>` : '<small>Not required</small>'}</td>
+          <td>${esc(account.loginId)}</td>
+          <td><span class="badge approved">Linked</span><small>Login credentials saved</small></td>
+          <td><span class="badge ${account.active ? 'handed' : 'cancelled'}">${account.active ? 'Active' : 'Inactive'}</span>${account.autoApprove ? ' <span class="badge approved">Auto-approve</span>' : ''}</td>
+          <td><div class="table-actions"><button class="btn small" type="button" data-action="edit-serial" data-id="${esc(account.id)}">${icon('edit', 15)} Edit</button><button class="btn small danger" type="button" data-action="delete-serial" data-id="${esc(account.id)}">${icon('trash', 15)} Delete</button></div></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+}
+
+function bulkHeadHtml(mode) {
+  const columns = mode === 'student'
+    ? ['Full Name', 'Class', 'Serial Number', 'Username', 'Password']
+    : ['Full Name', 'Serial Number (if applicable)', 'Username', 'Password'];
+  return `<div class="bulk-serial-head ${mode}" aria-hidden="true"><span></span>${columns.map((column) => `<span>${esc(column)}</span>`).join('')}<span></span></div>`;
+}
+
+function bulkRowsHtml(mode) {
+  return state.bulkSerialRows.map((row, index) => `
+    <div class="bulk-serial-row ${mode}" data-testid="bulk-serial-row" data-bulk-row data-row-id="${esc(row.id)}" data-index="${index}">
+      <span class="bulk-row-number">${index + 1}</span>
+      <input data-bulk-field="name" type="text" value="${esc(row.name)}" placeholder="Full name" aria-label="Full name row ${index + 1}">
+      ${mode === 'student' ? `<input data-bulk-field="className" type="text" value="${esc(row.className)}" placeholder="Class" aria-label="Class row ${index + 1}">` : ''}
+      <input data-bulk-field="serial" type="text" value="${esc(row.serial)}" placeholder="${mode === 'student' ? 'STU-####' : 'Optional T-####'}" aria-label="Serial number row ${index + 1}">
+      <input data-bulk-field="username" type="text" value="${esc(row.username)}" placeholder="Username" aria-label="Username row ${index + 1}">
+      <input data-bulk-field="password" type="password" value="${esc(row.password)}" placeholder="Password" aria-label="Password row ${index + 1}" autocomplete="new-password">
+      <button class="btn small danger" type="button" data-action="remove-bulk-row" data-index="${index}" aria-label="Remove row ${index + 1}"${state.bulkSerialRows.length <= 1 ? ' disabled' : ''}>${icon('x', 15)}</button>
+    </div>`).join('');
+}
+
+function reportRowHtml(row) {
+  return `<tr>
+    <td>${esc(row.source || `Row ${row.rowNumber || ''}`)}</td>
+    <td>${esc(row.name || '—')}</td>
+    <td>${esc(row.username || '—')}</td>
+    <td>${esc(row.serial || '—')}</td>
+    <td><span class="badge ${row.status === 'created' ? 'approved' : 'cancelled'}">${row.status === 'created' ? 'Created' : 'Unsuccessful'}</span></td>
+    <td>${esc(row.reason || (row.errorText || ''))}</td>
+  </tr>`;
+}
+
+function bulkReportHtml() {
+  const report = state.bulkReport;
+  if (!report) return '';
+  return `
+    <div class="card soft" style="margin-top:16px" data-testid="bulk-report">
+      <div class="card-header"><div><h3>Bulk result</h3><p>${report.successful} successful, ${report.unsuccessful} unsuccessful, ${report.total} total.</p></div></div>
+      <div class="message-box ${report.successful ? 'success' : 'error'}">${report.successful} record${report.successful === 1 ? '' : 's'} created and linked. ${report.unsuccessful} record${report.unsuccessful === 1 ? '' : 's'} need attention.</div>
+      <div class="table-wrap"><table><thead><tr><th>Source</th><th>Full name</th><th>Username</th><th>Serial</th><th>Result</th><th>Detail</th></tr></thead><tbody>${report.report.map(reportRowHtml).join('')}</tbody></table></div>
+    </div>`;
+}
+
+function bulkSerialsHtml(mode) {
+  return `
+    <section class="card" data-testid="bulk-generate-section">
+      <div class="card-header"><div><h2>Bulk Generate</h2><p>Enter every username and password yourself. Full name, class, serial number, username, and password remain separate fields.</p></div></div>
+      <form data-form="bulk-serials" data-testid="bulk-serials-form" novalidate>
+        ${bulkHeadHtml(mode)}
+        ${bulkRowsHtml(mode)}
+        <div class="btn-row" style="margin-top:16px">
+          <button class="btn primary" type="button" data-action="submit-form" data-form-kind="bulk-serials" data-testid="save-bulk-serials">${icon('save', 17)} Bulk Generate ${mode === 'student' ? 'Student' : 'Teacher'} Serials</button>
+          <button class="btn" type="button" data-action="add-bulk-row" data-testid="add-bulk-row">${icon('plus', 17)} Add row</button>
         </div>
       </form>
-    </section>
-    <section class="card">
-      <div class="card-header"><div><h2>Account list</h2><p>All registered users are visible here. Existing requests are preserved if an account is deleted.</p></div></div>
+      ${bulkReportHtml()}
+    </section>`;
+}
+
+function excelPreviewHtml() {
+  const preview = state.excelPreview;
+  if (!preview) return '';
+  return `
+    <div class="card soft" style="margin-top:16px" data-testid="excel-preview">
+      <div class="card-header"><div><h3>Import preview</h3><p>${preview.sheets.length} worksheet${preview.sheets.length === 1 ? '' : 's'} · ${preview.total} row${preview.total === 1 ? '' : 's'} · ${preview.validCount} ready · ${preview.invalidCount} need attention.</p></div></div>
+      <div class="message-box warning">Duplicate usernames, duplicate serial numbers, missing fields, and incorrect formats are marked below. Passwords are never shown in this preview.</div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Full name</th><th>Role</th><th>Username</th><th>Class</th><th>Serial</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody>${db.accounts.map((account) => {
-          const serial = account.serial ? findSerial(db, account.serial) : null;
-          const actions = account.permanent
-            ? '<span class="badge approved">Permanent</span><small>Full access · fixed account</small>'
-            : `<div class="table-actions"><button class="btn small" type="button" data-action="edit-account" data-id="${esc(account.id)}">${icon('edit', 15)} Edit</button><button class="btn small danger" type="button" data-action="delete-account" data-id="${esc(account.id)}">${icon('trash', 15)} Delete</button></div>`;
-          return `<tr data-login-id="${esc(account.loginId)}" data-testid="account-row">
-            <td><strong>${esc(account.name)}</strong><small>Created ${esc(formatDate(account.createdAt))}</small></td>
-            <td>${esc(account.role)}</td>
-            <td>${esc(account.loginId)}</td>
-            <td>${account.role === 'student' ? esc(account.className || '—') : '<small>Not required</small>'}</td>
-            <td>${account.serial ? `<strong>${esc(account.serial)}</strong><small>${serial ? esc(serial.status) : 'untracked'}${account.serialAssignedAt ? ` · assigned ${esc(formatDate(account.serialAssignedAt))}` : ''}</small>` : `<small>${account.role === 'student' ? 'Required' : 'Not required'}</small>`}</td>
-            <td><span class="badge ${account.active ? 'handed' : 'cancelled'}">${account.active ? 'Active' : 'Inactive'}</span>${account.autoApprove ? ' <span class="badge approved">Auto-approve</span>' : ''}</td>
-            <td>${actions}</td>
-          </tr>`;
-        }).join('')}</tbody>
+        <thead><tr><th>Source</th><th>Role</th><th>Full name</th><th>Class</th><th>Serial</th><th>Username</th><th>Password</th><th>Status</th><th>Detail</th></tr></thead>
+        <tbody>${preview.rows.map((row) => `<tr>
+          <td>${esc(row.source || `Row ${row.rowNumber || ''}`)}</td>
+          <td>${esc(row.role)}</td>
+          <td>${esc(row.name || '—')}</td>
+          <td>${row.role === 'student' ? esc(row.className || '—') : '<small>Not required</small>'}</td>
+          <td>${esc(row.serial || '—')}</td>
+          <td>${esc(row.username || '—')}</td>
+          <td>${row.password ? '<span class="badge handed">Provided</span>' : '<span class="badge cancelled">Missing</span>'}</td>
+          <td><span class="badge ${row.valid ? 'approved' : 'cancelled'}">${row.valid ? 'Ready' : 'Unsuccessful'}</span></td>
+          <td>${esc(row.errorText || 'Ready to import')}</td>
+        </tr>`).join('')}</tbody>
       </table></div>
+      <div class="btn-row" style="margin-top:16px">
+        <button class="btn primary" type="button" data-action="confirm-excel-import" data-testid="confirm-excel-import"${preview.validCount ? '' : ' disabled'}>${icon('check', 17)} Confirm import</button>
+        <button class="btn" type="button" data-action="cancel-excel-import">Cancel</button>
+      </div>
+    </div>`;
+}
+
+function excelReportHtml() {
+  const report = state.excelReport;
+  if (!report) return '';
+  return `
+    <div class="card soft" style="margin-top:16px" data-testid="excel-report">
+      <div class="card-header"><div><h3>Import success/error report</h3><p>${report.successful} successful, ${report.unsuccessful} unsuccessful, ${report.total} total.</p></div></div>
+      <div class="message-box ${report.successful ? 'success' : 'error'}">${report.successful} record${report.successful === 1 ? '' : 's'} imported and linked. ${report.unsuccessful} row${report.unsuccessful === 1 ? '' : 's'} were skipped.</div>
+      <div class="table-wrap"><table><thead><tr><th>Source</th><th>Full name</th><th>Username</th><th>Serial</th><th>Result</th><th>Detail</th></tr></thead><tbody>${report.report.map(reportRowHtml).join('')}</tbody></table></div>
+    </div>`;
+}
+
+function excelSerialsHtml() {
+  return `
+    <section class="card" data-testid="excel-section">
+      <div class="card-header"><div><h2>Excel template & import</h2><p>Download a formatted two-sheet workbook, fill it in, preview every row, then confirm the import.</p></div></div>
+      <div class="btn-row"><button class="btn primary" type="button" data-action="download-excel-template" data-testid="download-excel-template">${icon('download', 17)} Download Excel Template</button></div>
+      <div class="form-section">
+        <h3>Upload Excel file</h3>
+        <p>Student columns: Full Name, Class, Serial Number, Username, Password. Teacher columns: Full Name, Serial Number (if applicable), Username, Password.</p>
+        <div class="form-field"><label for="excel-file">Completed .xlsx workbook</label><input id="excel-file" data-field="excel-file" data-testid="excel-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></div>
+        ${state.excelFileName ? `<div class="file-pill" style="margin-top:10px">${icon('file', 17)} ${esc(state.excelFileName)}</div>` : ''}
+        <div class="btn-row" style="margin-top:14px"><button class="btn" type="button" data-action="upload-excel" data-testid="upload-excel">${icon('upload', 17)} Preview Excel import</button></div>
+        ${state.errors.excel ? `<div class="message-box error" style="margin-top:12px">${esc(state.errors.excel)}</div>` : ''}
+        ${excelPreviewHtml()}
+        ${excelReportHtml()}
+      </div>
+    </section>`;
+}
+
+function serialPoolHtml(db) {
+  const free = db.serials.filter((serial) => serial.status === 'free');
+  const eligibleAccounts = (role) => db.accounts.filter((account) => account.role === role && account.active && !account.permanent);
+  return `
+    <section class="card">
+      <div class="card-header">
+        <div><h2>Serial pool</h2><p>All assigned and free codes. Assignment controls remain available for pre-existing free codes.</p></div>
+        <button class="btn" type="button" data-action="export-serials">${icon('download', 17)} Export serials CSV</button>
+      </div>
+      ${free.length ? `<div class="serial-grid" style="margin-bottom:16px">${free.map((serial) => `<div class="serial-chip free">${esc(serial.code)} · ${esc(serial.role)}</div>`).join('')}</div>` : ''}
+      ${state.errors.serialAssign ? `<div class="message-box error">${esc(state.errors.serialAssign)}</div>` : ''}
+      ${db.serials.length ? `
+        <div class="table-wrap"><table>
+          <thead><tr><th>Serial</th><th>Role</th><th>Status</th><th>Assigned to</th><th>Assigned at</th><th>Assign</th></tr></thead>
+          <tbody>${db.serials.slice().sort((a, b) => a.code.localeCompare(b.code)).map((serial) => {
+            const account = serial.assignedTo ? findAccountById(db, serial.assignedTo) : null;
+            const accounts = eligibleAccounts(serial.role);
+            return `<tr>
+              <td><strong>${esc(serial.code)}</strong></td><td>${esc(serial.role)}</td>
+              <td><span class="badge ${serial.status === 'free' ? 'handed' : 'approved'}">${esc(serial.status)}</span></td>
+              <td>${account ? `${esc(account.name)}<small>${esc(account.loginId)}</small>` : '<small>Unassigned</small>'}</td>
+              <td>${serial.assignedAt ? esc(formatDateTime(serial.assignedAt)) : '<small>Not assigned yet</small>'}</td>
+              <td>${serial.status === 'free' ? `<div class="table-actions"><select data-serial-select="${esc(serial.code)}" aria-label="Account for ${esc(serial.code)}"><option value="">Choose account</option>${accounts.map((item) => `<option value="${esc(item.id)}">${esc(item.name)} · ${esc(item.loginId)}</option>`).join('')}</select><button class="btn small" type="button" data-action="assign-serial" data-code="${esc(serial.code)}">Assign</button></div>` : '<small>Linked to this account</small>'}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table></div>` : emptyState('No serial records yet', 'Create an individual record, use bulk entry, or import a completed Excel template.', 'key')}
     </section>`;
 }
 
 function renderAdminSerials() {
   const db = getDb();
+  const mode = state.serialMode === 'teacher' ? 'teacher' : 'student';
+  const title = mode === 'student' ? 'Student Serials' : 'Teacher Serials';
+  const accounts = db.accounts.filter((account) => account.role === mode && !account.permanent);
+  const modeSerials = db.serials.filter((serial) => serial.role === mode);
   const free = db.serials.filter((serial) => serial.status === 'free');
-  const assigned = db.serials.filter((serial) => serial.status === 'assigned');
-  const eligibleAccounts = (role) => db.accounts.filter((account) => account.role === role && account.active);
   return `
-    <section class="grid-3" style="margin-bottom:20px">
-      ${metric('Free', free.length, 'Ready to assign')}
-      ${metric('Assigned', assigned.length, 'Linked to one account')}
-      ${metric('All codes', db.serials.length, 'Generated or entered')}
+    ${serialModeCards(mode)}
+    <section class="grid-4" style="margin-bottom:20px">
+      ${metric(`${mode} records`, accounts.length, 'Linked login accounts')}
+      ${metric('Assigned codes', modeSerials.filter((serial) => serial.status === 'assigned').length, 'Synchronised serial records')}
+      ${metric('Free codes', free.length, 'Available for assignment')}
+      ${metric('All codes', db.serials.length, 'Created or imported')}
     </section>
-    <div class="grid-2">
-      <section class="card">
-        <div class="card-header"><div><h2>Bulk-generate serials</h2><p>Student codes use STU-####, teacher codes use T-####. Student serials can also be entered directly on the account form.</p></div></div>
-        <form data-form="generate-serials" novalidate>
-          <div class="form-grid">
-            <div class="form-field"><label for="serial-role">Role</label><select id="serial-role" name="role"><option value="student">Student</option><option value="teacher">Teacher</option></select>${fieldError('role')}</div>
-            <div class="form-field"><label for="serial-count">How many</label><input id="serial-count" name="count" type="number" min="1" max="50" value="5">${fieldError('count')}</div>
-          </div>
-          <div class="btn-row" style="margin-top:16px"><button class="btn primary" type="button" data-action="submit-form" data-form-kind="generate-serials">${icon('plus', 17)} Generate serials</button><button class="btn" type="button" data-action="export-serials">${icon('download', 17)} Export CSV</button></div>
-        </form>
-      </section>
-      <section class="card">
-        <div class="card-header"><div><h2>Free codes</h2><p>Newly generated serials appear here immediately.</p></div></div>
-        ${free.length ? `<div class="serial-grid">${free.map((serial) => `<div class="serial-chip free">${esc(serial.code)} · ${esc(serial.role)}</div>`).join('')}</div>` : emptyState('No free serials', 'Generate a batch or enter a unique student serial when creating an account.', 'key')}
-      </section>
-    </div>
     <section class="card">
-      <div class="card-header"><div><h2>Serial pool</h2><p>Each code is linked to at most one account. Assignment controls remain available for free codes.</p></div></div>
-      ${state.errors.serialAssign ? `<div class="message-box error">${esc(state.errors.serialAssign)}</div>` : ''}
-      <div class="table-wrap"><table>
-        <thead><tr><th>Serial</th><th>Role</th><th>Status</th><th>Assigned to</th><th>Assigned at</th><th>Assign</th></tr></thead>
-        <tbody>${db.serials.slice().sort((a, b) => a.code.localeCompare(b.code)).map((serial) => {
-          const account = serial.assignedTo ? findAccountById(db, serial.assignedTo) : null;
-          const accounts = eligibleAccounts(serial.role);
-          return `<tr>
-            <td><strong>${esc(serial.code)}</strong></td><td>${esc(serial.role)}</td>
-            <td><span class="badge ${serial.status === 'free' ? 'handed' : 'approved'}">${esc(serial.status)}</span></td>
-            <td>${account ? `${esc(account.name)}<small>${esc(account.loginId)}</small>` : '<small>Unassigned</small>'}</td>
-            <td>${serial.assignedAt ? esc(formatDateTime(serial.assignedAt)) : '<small>Not assigned yet</small>'}</td>
-            <td>${serial.status === 'free' ? `<div class="table-actions"><select data-serial-select="${esc(serial.code)}" aria-label="Account for ${esc(serial.code)}"><option value="">Choose account</option>${accounts.map((item) => `<option value="${esc(item.id)}">${esc(item.name)} · ${esc(item.loginId)}</option>`).join('')}</select><button class="btn small" type="button" data-action="assign-serial" data-code="${esc(serial.code)}">Assign</button></div>` : '<small>Assigned · linked to this account</small>'}</td>
-          </tr>`;
-        }).join('')}</tbody>
-      </table></div>
-    </section>`;
+      <div class="card-header">
+        <div><h2>${title}</h2><p>Every saved record creates a linked login account. Passwords are hashed and are never displayed after entry.</p></div>
+        <button class="btn primary" type="button" data-action="add-serial-form" data-testid="add-${mode}-serial">${icon('plus', 17)} Add ${mode === 'student' ? 'Student' : 'Teacher'} Serial</button>
+      </div>
+      ${state.serialFormOpen ? renderSerialForm(mode, Boolean(state.serialEditId)) : ''}
+      ${serialRecordsHtml(db, mode)}
+    </section>
+    ${bulkSerialsHtml(mode)}
+    ${excelSerialsHtml()}
+    ${serialPoolHtml(db)}`;
 }
 
 function renderAdminSettings() {
@@ -4694,19 +8371,48 @@ function renderSelfTestPage() {
     </main>`;
 }
 
-function readAccountForm(form) {
+function readSerialForm(form) {
   const data = new FormData(form);
-  state.accountForm = {
+  state.serialForm = {
     name: String(data.get('name') || ''),
-    role: String(data.get('role') || 'student'),
     className: String(data.get('className') || ''),
-    loginId: String(data.get('loginId') || ''),
-    password: String(data.get('password') || ''),
     serial: String(data.get('serial') || ''),
+    username: String(data.get('username') || ''),
+    password: String(data.get('password') || ''),
     active: data.has('active'),
-    autoApprove: data.has('autoApprove')
+    autoApprove: data.has('autoApprove'),
+    role: state.serialMode
   };
-  return state.accountForm;
+  return state.serialForm;
+}
+
+function readBulkRows(form) {
+  const mode = state.serialMode === 'teacher' ? 'teacher' : 'student';
+  const rows = [...form.querySelectorAll('[data-bulk-row]')].map((row, index) => ({
+    id: row.dataset.rowId || makeId('bulk'),
+    role: mode,
+    name: row.querySelector('[data-bulk-field="name"]').value,
+    className: mode === 'student' ? row.querySelector('[data-bulk-field="className"]').value : '',
+    serial: row.querySelector('[data-bulk-field="serial"]').value,
+    username: row.querySelector('[data-bulk-field="username"]').value,
+    password: row.querySelector('[data-bulk-field="password"]').value,
+    active: true,
+    autoApprove: false,
+    source: `Bulk row ${index + 1}`,
+    rowNumber: index + 1
+  }));
+  state.bulkSerialRows = rows;
+  return rows;
+}
+
+function readPasswordForm(form) {
+  const data = new FormData(form);
+  state.passwordForm = {
+    currentPassword: String(data.get('currentPassword') || ''),
+    newPassword: String(data.get('newPassword') || ''),
+    confirmPassword: String(data.get('confirmPassword') || '')
+  };
+  return state.passwordForm;
 }
 
 function readSettingsForm(form) {
@@ -4851,6 +8557,9 @@ async function handleAction(action, button, event) {
         state.view = 'login';
         state.loginRole = role;
         state.loginForm = blankLogin();
+        state.passwordChangeOpen = false;
+        state.passwordForm = blankPasswordForm();
+        resetSerialWorkspace('student');
         clearActionErrors();
         render();
         toast('Signed out', 'success', 'Sign-in page opened.');
@@ -4984,46 +8693,147 @@ async function handleAction(action, button, event) {
         toast('Filters cleared', 'info');
         break;
       }
-      case 'edit-account': {
+      case 'serial-mode': {
+        const mode = button.dataset.mode === 'teacher' ? 'teacher' : 'student';
+        resetSerialWorkspace(mode);
+        clearActionErrors();
+        render();
+        toast(`${mode === 'student' ? 'Student' : 'Teacher'} Serials opened`, 'info');
+        break;
+      }
+      case 'add-serial-form': {
+        state.serialFormOpen = true;
+        state.serialEditId = null;
+        state.serialForm = makeSerialForm(state.serialMode);
+        clearActionErrors();
+        render();
+        toast('Add serial record', 'info', 'All fields are entered separately.');
+        break;
+      }
+      case 'cancel-serial-form': {
+        state.serialFormOpen = false;
+        state.serialEditId = null;
+        state.serialForm = makeSerialForm(state.serialMode);
+        clearActionErrors();
+        render();
+        toast('Serial form closed', 'info');
+        break;
+      }
+      case 'edit-serial': {
         const account = findAccountById(db, button.dataset.id);
-        if (!account) throw new Error('That account no longer exists.');
-        if (account.permanent) {
-          toast('Permanent administrator', 'info', 'This fixed account already has full administrator access.');
-          break;
-        }
-        state.editAccountId = account.id;
-        state.accountForm = {
+        if (!account) throw new Error('That serial record no longer exists.');
+        state.serialMode = account.role === 'teacher' ? 'teacher' : 'student';
+        state.serialFormOpen = true;
+        state.serialEditId = account.id;
+        state.serialForm = {
           name: account.name,
-          role: account.role,
           className: account.className || '',
-          loginId: account.loginId,
-          password: '',
           serial: account.serial || '',
+          username: account.loginId,
+          password: '',
           active: account.active,
-          autoApprove: Boolean(account.autoApprove)
+          autoApprove: Boolean(account.autoApprove),
+          role: state.serialMode
         };
         clearActionErrors();
         render();
-        toast('Editing account', 'info', account.loginId);
+        toast('Editing serial record', 'info', account.loginId);
         break;
       }
-      case 'cancel-edit': {
-        state.editAccountId = null;
-        state.accountForm = makeAccountForm();
-        clearActionErrors();
-        render();
-        toast('Account edit cancelled', 'info');
-        break;
-      }
-      case 'delete-account': {
+      case 'delete-serial': {
         const account = findAccountById(db, button.dataset.id);
-        if (account && account.permanent) {
-          toast('Permanent administrator', 'info', 'This fixed account cannot be deleted.');
+        state.confirm = {
+          type: 'delete-serial',
+          id: button.dataset.id,
+          title: 'Delete this serial record?',
+          label: account ? `${account.name} (${account.loginId}) and its serial ${account.serial || 'record'} will be removed with the linked login account. Existing requests stay in reports.` : 'This serial record and its linked login account will be removed.'
+        };
+        render();
+        toast('Confirm serial deletion', 'info', 'Use the confirmation bar above.');
+        break;
+      }
+      case 'add-bulk-row': {
+        const form = button.closest('form[data-form="bulk-serials"]');
+        if (form) readBulkRows(form);
+        state.bulkSerialRows.push(makeBulkSerialRow(state.serialMode, state.bulkSerialRows.length + 1));
+        state.bulkReport = null;
+        render();
+        toast('Bulk row added', 'info');
+        break;
+      }
+      case 'remove-bulk-row': {
+        const form = button.closest('form[data-form="bulk-serials"]');
+        if (form) readBulkRows(form);
+        if (state.bulkSerialRows.length <= 1) {
+          toast('At least one bulk row is required', 'info');
           break;
         }
-        state.confirm = { type: 'delete-account', id: button.dataset.id, title: 'Delete this account?', label: account ? `${account.name} (${account.loginId}) will be removed. Existing requests stay in reports.` : 'This account will be removed.' };
+        state.bulkSerialRows.splice(Number(button.dataset.index), 1);
+        state.bulkReport = null;
         render();
-        toast('Confirm account deletion', 'info', 'Use the confirmation bar above.');
+        toast('Bulk row removed', 'info');
+        break;
+      }
+      case 'download-excel-template': {
+        const template = serialsTemplate(state.session);
+        downloadBlob(template.bytes, template.fileName, template.mime);
+        toast('Excel template downloaded', 'success', template.fileName);
+        break;
+      }
+      case 'upload-excel': {
+        if (!state.excelFile) {
+          state.errors.excel = 'Choose a completed .xlsx workbook first.';
+          render();
+          toast('No Excel file selected', 'error', state.errors.excel);
+          break;
+        }
+        const bytes = await readFileBytes(state.excelFile);
+        const preview = previewSerialsWorkbook(bytes, state.session);
+        state.excelPreview = preview;
+        state.excelReport = null;
+        delete state.errors.excel;
+        render();
+        toast('Excel preview ready', 'success', `${preview.validCount} ready, ${preview.invalidCount} need attention.`);
+        break;
+      }
+      case 'confirm-excel-import': {
+        if (!state.excelPreview) throw new Error('Preview an Excel workbook before importing.');
+        const result = importSerialRows(state.excelPreview.rows, state.session);
+        state.excelReport = result;
+        state.excelPreview = null;
+        state.excelFile = null;
+        state.excelFileName = '';
+        render();
+        toast('Excel import complete', result.successful ? 'success' : 'error', `${result.successful} successful, ${result.unsuccessful} unsuccessful.`);
+        break;
+      }
+      case 'cancel-excel-import': {
+        state.excelPreview = null;
+        state.excelFile = null;
+        state.excelFileName = '';
+        delete state.errors.excel;
+        render();
+        toast('Excel import cancelled', 'info');
+        break;
+      }
+      case 'open-password-change': {
+        if (!state.session || state.session.role === 'admin') {
+          toast('Access denied', 'error', 'Only students and teachers can change their own password here.');
+          break;
+        }
+        state.passwordChangeOpen = true;
+        state.passwordForm = blankPasswordForm();
+        clearActionErrors();
+        render();
+        toast('Change password opened', 'info');
+        break;
+      }
+      case 'cancel-password-change': {
+        state.passwordChangeOpen = false;
+        state.passwordForm = blankPasswordForm();
+        clearActionErrors();
+        render();
+        toast('Password change cancelled', 'info');
         break;
       }
       case 'assign-serial': {
@@ -5042,7 +8852,7 @@ async function handleAction(action, button, event) {
         break;
       }
       case 'export-serials': {
-        downloadText('steamlab-serials.csv', exportSerialsCsv(db), 'text/csv;charset=utf-8');
+        downloadText('steamlab-serials.csv', exportSerialsCsv(db, state.session), 'text/csv;charset=utf-8');
         toast('Serial CSV exported', 'success');
         break;
       }
@@ -5165,20 +8975,21 @@ async function handleConfirmYes() {
     const result = cancelRequest(db, confirmation.id, state.session, 'Cancelled before printing.');
     state.confirm = null;
     handleOperationResult(result, 'Request cancelled', 'Request could not be cancelled', 'Reserved time was released and the scheduler re-ran.');
-  } else if (confirmation.type === 'delete-account') {
-    const result = deleteAccount(confirmation.id, state.session);
+  } else if (confirmation.type === 'delete-serial') {
+    const result = deleteSerialEntry(confirmation.id, state.session);
     state.confirm = null;
     if (!result.ok) {
       state.errors.general = Object.values(result.errors).join(' ');
       render();
-      toast('Account not deleted', 'error', state.errors.general);
+      toast('Serial not deleted', 'error', state.errors.general);
     } else {
-      if (state.editAccountId === confirmation.id) {
-        state.editAccountId = null;
-        state.accountForm = makeAccountForm();
+      if (state.serialEditId === confirmation.id) {
+        state.serialFormOpen = false;
+        state.serialEditId = null;
+        state.serialForm = makeSerialForm(state.serialMode);
       }
       render();
-      toast('Account deleted', 'success', 'Existing requests were preserved.');
+      toast('Serial record deleted', 'success', 'The linked login account was removed. Existing requests were preserved.');
     }
   } else if (confirmation.type === 'reset') {
     await resetFactoryData(state.session);
@@ -5189,8 +9000,9 @@ async function handleConfirmYes() {
     state.confirm = null;
     state.draft = makeDraft();
     state.lastSubmission = null;
-    state.editAccountId = null;
-    state.accountForm = makeAccountForm();
+    state.passwordChangeOpen = false;
+    state.passwordForm = blankPasswordForm();
+    resetSerialWorkspace('student');
     state.settingsForm = makeSettingsForm(getDb().settings);
     clearActionErrors();
     render();
@@ -5219,6 +9031,8 @@ async function handleSubmit(event) {
         state.session = result.account;
         state.view = defaultView(result.account.role);
         state.loginRole = null;
+        state.passwordChangeOpen = false;
+        state.passwordForm = blankPasswordForm();
         clearActionErrors();
         render();
         toast(`Welcome, ${result.account.name}`, 'success', `${result.account.role} workspace opened`);
@@ -5237,32 +9051,45 @@ async function handleSubmit(event) {
         render();
         toast('Request submitted', 'success', `${result.request.code} saved with its uploaded file.`);
       }
-    } else if (kind === 'accounts') {
-      const payload = readAccountForm(form);
-      const wasEditing = Boolean(state.editAccountId);
-      const result = wasEditing ? updateAccount(state.editAccountId, payload, state.session) : createAccount(payload, state.session);
+    } else if (kind === 'serial-record') {
+      const payload = readSerialForm(form);
+      const wasEditing = Boolean(state.serialEditId);
+      const result = wasEditing
+        ? updateSerialEntry(state.serialEditId, payload, state.serialMode, state.session)
+        : createSerialEntry(payload, state.serialMode, state.session);
       if (!result.ok) {
         state.errors = result.errors;
         render();
-        toast('Account needs attention', 'error', Object.values(result.errors)[0] || 'Check the form.');
+        toast('Serial record needs attention', 'error', Object.values(result.errors)[0] || 'Check the form.');
       } else {
-        state.editAccountId = null;
-        state.accountForm = makeAccountForm();
+        state.serialFormOpen = false;
+        state.serialEditId = null;
+        state.serialForm = makeSerialForm(state.serialMode);
         clearActionErrors();
         render();
-        toast(wasEditing ? 'Account updated' : 'Account created', 'success', `${result.account.loginId} saved.`);
+        toast(wasEditing ? 'Serial record updated' : 'Serial record created', 'success', `${result.account.loginId} saved and linked.`);
       }
-    } else if (kind === 'generate-serials') {
-      const data = new FormData(form);
-      const result = generateSerials({ role: String(data.get('role') || ''), count: Number(data.get('count')) }, state.session);
+    } else if (kind === 'bulk-serials') {
+      const rows = readBulkRows(form);
+      const result = bulkCreateSerialRows(rows, state.serialMode, state.session);
+      state.bulkReport = result;
+      if (result.successful) state.bulkSerialRows = makeBulkSerialRows(state.serialMode, 2);
+      clearActionErrors();
+      render();
+      toast('Bulk generation complete', result.successful ? 'success' : 'error', `${result.successful} successful, ${result.unsuccessful} unsuccessful.`);
+    } else if (kind === 'change-password') {
+      const payload = readPasswordForm(form);
+      const result = changeOwnPassword(payload, state.session);
       if (!result.ok) {
         state.errors = result.errors;
         render();
-        toast('Serial batch needs attention', 'error', Object.values(result.errors)[0] || 'Check the form.');
+        toast('Password change needs attention', 'error', Object.values(result.errors)[0] || 'Check the form.');
       } else {
+        state.passwordChangeOpen = false;
+        state.passwordForm = blankPasswordForm();
         clearActionErrors();
         render();
-        toast(`${result.codes.length} serials generated`, 'success', result.codes.join(', '));
+        toast('Password changed', 'success', 'Use the new password for future sign-ins.');
       }
     } else if (kind === 'settings') {
       readSettingsForm(form);
@@ -5302,8 +9129,12 @@ function handleInput(event) {
       password: String(data.get('password') || '')
     };
   }
-  const accountForm = target.closest('form[data-form="accounts"]');
-  if (accountForm) readAccountForm(accountForm);
+  const serialForm = target.closest('form[data-form="serial-record"]');
+  if (serialForm) readSerialForm(serialForm);
+  const bulkForm = target.closest('form[data-form="bulk-serials"]');
+  if (bulkForm) readBulkRows(bulkForm);
+  const passwordForm = target.closest('form[data-form="change-password"]');
+  if (passwordForm) readPasswordForm(passwordForm);
   const settingsForm = target.closest('form[data-form="settings"]');
   if (settingsForm) readSettingsForm(settingsForm);
 }
@@ -5328,6 +9159,17 @@ async function handleChange(event) {
     toast(file ? 'Backup file selected' : 'Backup selection cleared', 'info', file ? file.name : '');
     return;
   }
+  if (target.matches('[data-field="excel-file"]')) {
+    const file = target.files && target.files[0] ? target.files[0] : null;
+    state.excelFile = file;
+    state.excelFileName = file ? file.name : '';
+    state.excelPreview = null;
+    state.excelReport = null;
+    delete state.errors.excel;
+    render();
+    toast(file ? 'Excel file selected' : 'Excel selection cleared', 'info', file ? file.name : '');
+    return;
+  }
   if (target.matches('[data-filter]')) {
     state.filters[target.dataset.filter] = target.value;
     refreshTableOnly();
@@ -5338,16 +9180,19 @@ async function handleChange(event) {
     await refreshDraftEstimate();
     return;
   }
-  const accountForm = target.closest('form[data-form="accounts"]');
-  if (accountForm) {
-    const roleChanged = target.name === 'role';
-    readAccountForm(accountForm);
-    if (roleChanged) {
-      state.accountForm.serial = '';
-      if (state.accountForm.role !== 'student') state.accountForm.className = '';
-      render();
-      toast(`${state.accountForm.role} account fields updated`, 'info');
-    }
+  const serialForm = target.closest('form[data-form="serial-record"]');
+  if (serialForm) {
+    readSerialForm(serialForm);
+    return;
+  }
+  const bulkForm = target.closest('form[data-form="bulk-serials"]');
+  if (bulkForm) {
+    readBulkRows(bulkForm);
+    return;
+  }
+  const passwordForm = target.closest('form[data-form="change-password"]');
+  if (passwordForm) {
+    readPasswordForm(passwordForm);
     return;
   }
   const settingsForm = target.closest('form[data-form="settings"]');

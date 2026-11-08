@@ -136,7 +136,30 @@ svg { display: block; flex-shrink: 0; }
   transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 .role-button:hover { transform: translateY(-4px); border-color: var(--accent); box-shadow: 0 18px 34px rgba(37, 99, 235, 0.14); }
-.role-icon { width: 54px; height: 54px; border-radius: 16px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
+.role-button > .role-icon {
+  flex: 0 0 56px;
+  width: 56px;
+  height: 56px;
+  margin: 0;
+  padding: 0;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  line-height: 0;
+  text-align: center;
+  color: var(--accent);
+  background: var(--accent-soft);
+  box-sizing: border-box;
+}
+.role-button > .role-icon svg {
+  display: block;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  margin: 0;
+}
 .role-button strong { display: block; font-size: 1.45rem; letter-spacing: -0.02em; }
 .role-button span { display: block; color: var(--muted); font-size: 0.94rem; margin-top: 4px; }
 .role-arrow { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); font-weight: 750; font-size: 0.92rem; }
@@ -463,7 +486,8 @@ td small { display: block; }
   .landing-card { padding: 24px 18px; border-radius: 20px; }
   .role-grid { grid-template-columns: 1fr; }
   .role-button { min-height: 132px; padding: 18px; }
-  .role-icon { width: 46px; height: 46px; }
+  .role-button > .role-icon { flex-basis: 50px; width: 50px; height: 50px; }
+  .role-button > .role-icon svg { width: 28px; height: 28px; }
   .auth-panel { padding: 18px 12px; }
   .auth-card { padding: 22px 18px; }
   .form-grid, .detail-list, .estimate-details, .grid-4, .report-status-grid, .serial-grid { grid-template-columns: 1fr; }
@@ -479,4 +503,66 @@ td small { display: block; }
   .sidebar-footer { grid-template-columns: 1fr; }
   .logout-button { width: 100%; }
   .board { min-width: 1040px; }
+}
+
+/* Serial management uses the existing card, button, table, and badge language. */
+.serial-mode-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 20px; }
+.serial-mode-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 106px;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+.serial-mode-card:hover { transform: translateY(-2px); border-color: var(--accent); box-shadow: 0 12px 26px rgba(37, 99, 235, 0.12); }
+.serial-mode-card:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.28); outline-offset: 2px; }
+.serial-mode-card.selected { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.serial-mode-icon {
+  width: 54px;
+  height: 54px;
+  flex: 0 0 54px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.serial-mode-icon svg { width: 30px; height: 30px; display: block; }
+.serial-mode-card strong { display: block; font-size: 1.14rem; letter-spacing: -0.01em; }
+.serial-mode-card small { display: block; color: var(--muted); font-size: 0.9rem; margin-top: 4px; line-height: 1.4; }
+
+.bulk-serial-head,
+.bulk-serial-row { display: grid; align-items: center; gap: 8px; }
+.bulk-serial-head.student { grid-template-columns: 32px minmax(130px, 1.35fr) minmax(90px, 0.9fr) minmax(115px, 1.05fr) repeat(2, minmax(120px, 1fr)) 42px; }
+.bulk-serial-row.student { grid-template-columns: 32px minmax(130px, 1.35fr) minmax(90px, 0.9fr) minmax(115px, 1.05fr) repeat(2, minmax(120px, 1fr)) 42px; }
+.bulk-serial-head.teacher { grid-template-columns: 32px minmax(150px, 1.35fr) minmax(140px, 1.1fr) repeat(2, minmax(120px, 1fr)) 42px; }
+.bulk-serial-row.teacher { grid-template-columns: 32px minmax(150px, 1.35fr) minmax(140px, 1.1fr) repeat(2, minmax(120px, 1fr)) 42px; }
+.bulk-serial-head { color: var(--muted); font-size: 0.78rem; font-weight: 750; text-transform: uppercase; letter-spacing: 0.04em; padding: 0 8px 4px; }
+.bulk-serial-row { padding: 8px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.bulk-serial-row input { width: 100%; min-width: 0; }
+.bulk-row-number { width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center; background: var(--bg); color: var(--muted); font-weight: 750; }
+.bulk-serial-row .btn.small.danger { width: 42px; min-width: 42px; padding: 0; justify-content: center; }
+
+@media (max-width: 900px) {
+  .serial-mode-grid { grid-template-columns: 1fr; }
+  .bulk-serial-head { display: none; }
+  .bulk-serial-row.student, .bulk-serial-row.teacher { grid-template-columns: 1fr 1fr; }
+  .bulk-serial-row .bulk-row-number { grid-column: 1 / -1; width: 100%; height: auto; padding: 4px; border-radius: 8px; }
+  .bulk-serial-row .btn.small.danger { grid-column: 1 / -1; width: 100%; }
+}
+@media (max-width: 560px) {
+  .serial-mode-card { padding: 16px; gap: 12px; }
+  .serial-mode-icon { width: 48px; height: 48px; flex-basis: 48px; border-radius: 14px; }
+  .serial-mode-icon svg { width: 27px; height: 27px; }
+  .bulk-serial-row.student, .bulk-serial-row.teacher { grid-template-columns: 1fr; }
 }

@@ -1,43 +1,52 @@
 # STEAM Lab Booking System
 
-A single-file, offline-capable school 3D-printer booking portal. The app keeps its page, styles, JavaScript, and generated icons in one `dist/index.html`; it makes no external runtime requests for fonts, images, scripts, analytics, or a backend.
+A single-file, offline-capable school 3D-printer booking portal. The app keeps its page, styles, JavaScript, generated icons, and vendored XLSX ZIP helper in one `dist/index.html`; it makes no external runtime requests for fonts, images, scripts, analytics, a backend, or an Excel library.
 
-The original design, responsive layout, request workflow, STL/G-code estimator, scheduler, reports, serial-pool tools, settings, backups, and self-test route are preserved. This update adds a functional account-management and authentication layer without a visual redesign.
+The original design, responsive layout, request workflow, STL/G-code estimator, scheduler, reports, serial-pool tools, settings, backups, and self-test route are preserved. This update corrects the three landing role icons and replaces the separate Accounts workspace with a single, fully functional Serials workspace, without a redesign.
 
 ## Start state and accounts
 
 A clean install starts with **exactly two permanent administrator accounts**:
 
-- `ARHATSHAH8149`
-- `RUTHVIKA20`
+- `ARHATSHAH8149` — display name **ARHAT SHAH**
+- `RUTHVIKA20` — display name **RUTHVIKA VANKADHARA**
 
-Their passwords are **not** stored as plaintext in source, `dist/index.html`, the UI, this README, exports, database responses, or browser-visible account objects. Only per-account salted hashes are embedded. Both accounts have identical full administrator permissions and fixed, protected records.
+The administrator login usernames and protected password hashes are unchanged; only the requested display names were renamed. Their passwords are **not** stored as plaintext in source, `dist/index.html`, the UI, this README, exports, database responses, or browser-visible account objects. Only per-account salted hashes are embedded. Both accounts have identical full administrator permissions and fixed, protected records.
 
-There are **no pre-created student accounts, teacher accounts, student serial numbers, or booking requests**. All sample student/teacher accounts and sample login credentials have been removed. The website does not display issued or sample credentials anywhere.
+There are **no pre-created student accounts, teacher accounts, serial numbers, or booking requests**. No sample student/teacher accounts or sample login credentials remain, and the website does not display issued credentials anywhere.
 
-A signed-out user sees the same three role buttons: Student, Teacher, and Admin. Selecting a role opens a sign-in form with **only Username and Password**. No name, class, or serial field is requested at login.
+A signed-out user sees the same three role buttons: Student, Teacher, and Admin. All three icon badges and SVGs are consistently sized and centred on desktop and mobile without changing surrounding text, buttons, colours, or backgrounds. Selecting a role opens a sign-in form with **only Username and Password**.
 
-### Administrator account management
+### Serial management workspace
 
-Only an authenticated administrator can open administrator views or call account-management APIs. The Accounts workspace can:
+The separate Account Management / Accounts navigation entry, view, form, list, and actions have been removed. The existing **Serials** section remains and now begins with two clearly distinguishable mode cards: **Student Serials** and **Teacher Serials**. Only an authenticated administrator can open this view or call its APIs.
 
-- create a student with **Full Name, Class, Student Serial Number, Username, and Password**;
-- create a teacher with **Full Name, Username, and Password**;
-- edit and delete student/teacher accounts, including usernames and passwords;
-- view every registered user and its role, class, serial, status, and creation date;
-- generate and export serials, assign free serials, save settings, export reports/backups, import a validated backup, and restore factory accounts.
+Individual records support create, view, edit, and delete:
 
-Permanent administrator accounts are visible as permanent records but have no edit or delete controls, and the API rejects changes to them. Usernames are unique case-insensitively. Student serial numbers are unique and must match `STU-####`; teacher serials are optional. Incorrect credentials return an inline “Username or password is incorrect.” error without exposing whether the username exists.
+- Student fields: **Student Full Name, Class, Student Serial Number, Username, Password**.
+- Teacher fields: **Teacher Full Name, Teacher Serial Number (if applicable), Username, Password**.
+- Full name and username are separate fields. Usernames and passwords are never auto-generated and are never derived from a full name.
+- Saving creates one serial record and one linked login account. Password values are hashed immediately and are not rendered after entry.
+- Editing synchronises the account name, class, serial, username, status, and optional password reset. A blank edit password preserves the existing hash.
+- Deleting asks for confirmation, removes the linked login account and serial record, and preserves existing requests in reports.
+- Student codes match `STU-####`; teacher codes match `T-####` and are optional. A blank teacher serial creates no serial-pool record.
 
-### Automatic registered identity
+**Bulk Generate** accepts multiple student or teacher rows using the same fields. Every valid row creates a linked serial and login account. Validation rejects duplicate serial numbers and usernames within the batch and against the existing database, missing required fields, incorrect formats, and short or invalid passwords. The result shows a clear successful/unsuccessful report.
 
-After a student or teacher signs in, the registered account details are loaded automatically from the admin-created record and displayed in a read-only **Registered account** panel:
+### Excel template and import
 
-- students see Full Name, Username, Class, and Student Serial Number;
-- teachers see Full Name, Username, Role, and any optional issued serial;
-- administrators see Full Name, Username, Role, and full account scope.
+The Serials workspace contains **Download Excel Template** and **Upload Excel File**. The generated `.xlsx` is a real two-sheet, frozen-header OOXML workbook created offline with the vendored MIT-licensed `fflate` ZIP helper:
 
-Students and teachers cannot edit these identity details, cannot open the administrator dashboard, and cannot reach administrator views by changing the URL hash. Logging out clears the session and returns to the role-specific login page.
+- `Student Serials`: `Full Name | Class | Serial Number | Username | Password`
+- `Teacher Serials`: `Full Name | Serial Number (if applicable) | Username | Password`
+
+Upload reads every populated row, detects duplicates and incomplete/incorrect records, and shows a preview with “Provided”/“Missing” password status before final confirmation. No password value is shown in the preview. **Confirm import** creates all valid linked serial records and login accounts without manual recreation, then shows a success/error report. CSV serial export and the existing free-code assignment controls remain available. The HTTP-looking strings in the built artifact are inert OOXML XML namespace identifiers, not network requests.
+
+### Registered identity and password changes
+
+After sign-in, registered account details are loaded automatically from the administrator-created record and displayed in a read-only **Registered account** panel. Students see Full Name, Username, Class, and Student Serial Number; teachers see Full Name, Username, Role, and any optional issued serial; administrators see Full Name, Username, Role, and full account scope.
+
+Students and teachers can open **Change password** and must enter **Current Password, New Password, Confirm New Password**. The current password is verified, the new and confirmation values must match, and the new salted hash applies immediately to future sign-ins. They cannot change their username, serial number, class, or registered name. Administrator password reset remains available in the serial edit form. Logging out clears the session and returns to the role-specific login page.
 
 ## Authentication and data handling
 
@@ -49,11 +58,11 @@ Within that constraint, the implementation uses:
 - no WebCrypto dependency, so the same verifier works in normal tabs, `file://`, and `sandbox="allow-scripts"` iframes;
 - constant-time hexadecimal hash comparison;
 - `publicAccount()` responses and credential-free sessions that strip `salt`, `passwordHash`, `hashIterations`, and any `password` field;
-- `requireSession()` / `requireAdmin()` API guards, session-bound workflow wrappers, own-file download checks, and UI route guards;
+- `requireSession()` / `requireAdmin()` guards on authentication, account, serial, bulk, Excel, export, and workflow APIs, plus UI route guards;
 - strict `steamlab-db-v2` validation that rejects plaintext password fields, duplicate usernames/serials, invalid hashes, and altered permanent administrator hashes;
 - automatic replacement of invalid or older local data with the clean two-administrator factory database.
 
-Passwords are never rendered after account creation. Password changes create a new random salt and a new iterated hash.
+Passwords are never rendered after account creation. Password changes create a new random salt and a new iterated hash. Serial records and login accounts are synchronised on create, edit, delete, bulk import, and Excel import.
 
 Persistence uses `localStorage` for the database and IndexedDB for uploaded file bytes. When browser storage is blocked, the app shows an in-memory-mode notice and keeps database/files in memory for the current page. The in-app `#selftest` route builds an isolated temporary store and never reads or writes the live database.
 
@@ -80,43 +89,50 @@ Automated checks run in Node and headless Chromium:
 ```sh
 node tests/scheduler.test.mjs
 node tests/accounts.test.mjs
+node tests/serials.test.mjs
 node build.mjs
 ```
 
 Latest results:
 
-- `node --check`: PASS for 10 JavaScript/ESM source files.
+- `node --check`: PASS for all source, build, and test JavaScript/ESM files.
 - Scheduler/estimator tests: **12/12 PASS**.
-- Account/authentication tests: **9/9 PASS** — factory start state, both admin usernames, salted login, iterated verification, public-account sanitization, forged-actor session rejection, duplicate username/serial rejection, admin-only CRUD, permanent-admin protection, and student/teacher CRUD.
+- Account/authentication tests: **10/10 PASS** — factory start state, requested display names, both admin usernames, salted login, iterated verification, public-account sanitization, forged-actor session rejection, duplicate username/serial rejection, admin-only CRUD, permanent-admin protection, student/teacher CRUD, and self-service password changes.
+- Serial/XLSX tests: **6/6 PASS** — real two-sheet workbook, exact headers, row parsing with separate full-name/username fields, duplicate/incomplete validation, synchronised bulk creation, hashed sanitized records, edit/delete synchronisation, and persisted display-name normalization.
 - In-page `#selftest`: **12/12 PASS** in a browser and in isolated Node execution.
-- `node build.mjs`: one self-contained `dist/index.html` with 7 inlined modules and no external URLs, `fetch`, WebCrypto, native dialogs, source references, TODOs, or placeholder text.
-- Static scans: no plaintext administrator passwords, old demo credentials, or demo account seeds in source, `dist`, UI, README, exports, or database responses.
+- `node build.mjs`: one self-contained `dist/index.html` with 10 inlined modules, no external runtime requests, no external source references, no `fetch`, no WebCrypto dependency, no native dialogs, no TODOs, and no placeholder text. All URL-like strings are OOXML namespace identifiers.
+- Static scans: no plaintext administrator passwords, old demo credentials, demo account seeds, or test-fixture password values in `dist`, UI, README, exports, previews, reports, or persisted database responses. The generated database never stores plaintext passwords.
 
 Headless Chromium E2E covered three contexts: a normal tab, a `sandbox="allow-scripts"` iframe with blocked localStorage, and the generated `file://` artifact. Each context had zero console errors, zero page errors, and zero external runtime requests.
 
-The required account-management acceptance sequence passed:
+The requested acceptance checks passed in the normal browser:
 
-1. **Both administrator accounts** signed in and opened the full admin dashboard.
-2. An administrator **created a student** with Full Name, Class, Student Serial Number, Username, and Password.
-3. The student **signed in with Username and Password only**.
-4. Full Name, Class, and Student Serial Number **appeared automatically** and were read-only.
-5. An administrator **created and tested a teacher account**.
-6. The teacher signed in **without entering a name manually**; registered identity appeared automatically.
-7. Student and teacher accounts **could not access administrator features**, including by direct URL hash.
-8. The clean factory database contained **only the two permanent administrators**, with no sample student/teacher accounts, credentials, serials, or requests.
+1. Landing role icon size/position/alignment on desktop and mobile, with zero horizontal overflow.
+2. Individual Student Serial creation with all five fields and a linked login account.
+3. Individual Teacher Serial creation with all required fields and a linked login account.
+4. Serial edit and delete, including synchronised account records, confirmation, blank-password preservation, and administrator password reset.
+5. Bulk Generate with one valid, one duplicate, and one incomplete row; correct summary and persisted valid account.
+6. Excel template download; SheetJS validation confirmed both sheet names and exact headers.
+7. Excel upload, preview before confirmation, final import, and success/error report without manual recreation.
+8. Duplicate username/serial and missing-field detection in individual, bulk, and Excel flows.
+9. Student and teacher self-service password changes with wrong-current, mismatch, old-password rejection, and new-password sign-in.
+10. Administrator access restrictions for student/teacher roles, including direct URL hashes and no removed Accounts controls.
 
-Additional regression checks passed: duplicate username/serial inline errors, wrong-password inline error, logout to login page, account edit/delete, reload/reopen persistence, mobile viewport with no document overflow, binary STL mesh estimate, request submit/download/cancel, teacher approval and full workflow, schedule block `0 → 1`, generated serials, settings save, CSV exports, `steamlab-backup-v2` export/import, factory reset, offline navigation, and the in-page self-test.
+Additional checks passed: both administrator display names, persistence after reload, every admin view rendering, preserved serial CSV export, settings save, factory reset, offline navigation, in-page self-test, and the clean two-administrator factory database with zero student/teacher accounts, serials, or requests.
 
 ## Repository layout
 
 - `index.html` — source shell; replaced by `dist/index.html` at build time.
 - `src/core.js` — storage helpers, SHA-256, salts, iterated password verification, IDs, dates, file bytes.
 - `src/db.js` — v2 factory database, validation, normalization, public account projection, serial helpers.
-- `src/api.js` — authentication, sessions, account CRUD, requests, workflow, scheduler, reports, backups, and role guards.
+- `src/fflate.js` — vendored MIT-licensed ZIP helper used offline by the XLSX module.
+- `src/xlsx.js` — offline `.xlsx` template builder and workbook parser.
+- `src/serials.js` — serial validation, duplicate checks, account/serial synchronisation, CRUD, bulk application, and safe reports.
+- `src/api.js` — authentication, sessions, account CRUD, serial/XLSX/bulk APIs, password changes, requests, workflow, scheduler, reports, backups, and role guards.
 - `src/scheduler.js`, `src/estimate.js` — unchanged scheduler and STL/G-code estimator.
-- `src/ui.js`, `src/styles.css` — preserved layout/design with simplified login, account identity panel, and admin account fields.
+- `src/ui.js`, `src/styles.css` — preserved layout/design with corrected role icons, registered identity, password change, and combined Serials workspace.
 - `src/selftest.js` — isolated in-app self-test.
-- `tests/scheduler.test.mjs`, `tests/accounts.test.mjs` — Node test suites.
+- `tests/scheduler.test.mjs`, `tests/accounts.test.mjs`, `tests/serials.test.mjs` — Node test suites.
 - `build.mjs` — inlines all modules/CSS into the single-file artifact.
 - `netlify.toml` — exact build/publish/cache settings.
 - `dist/index.html` — generated deliverable.

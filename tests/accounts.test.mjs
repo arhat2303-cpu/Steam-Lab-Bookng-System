@@ -6,7 +6,7 @@ import {
 } from '../src/db.js';
 import {
   getSessionAccount, login, logout, createAccount, updateAccount, deleteAccount,
-  approveRequest
+  approveRequest, createSerialEntry, changeOwnPassword
 } from '../src/api.js';
 
 let failures = 0;
@@ -74,6 +74,8 @@ test('factory database starts with exactly two permanent admins and no student o
   const db = getDb();
   assert.equal(db.accounts.length, 2);
   assert.equal(db.accounts.filter((account) => account.role === 'admin' && account.permanent).length, 2);
+  assert.equal(db.accounts.find((account) => account.loginId === 'ARHATSHAH8149').name, 'ARHAT SHAH');
+  assert.equal(db.accounts.find((account) => account.loginId === 'RUTHVIKA20').name, 'RUTHVIKA VANKADHARA');
   assert.equal(db.accounts.filter((account) => account.role === 'student' || account.role === 'teacher').length, 0);
   assert.equal(db.requests.length, 0);
   assert.equal(db.serials.length, 0);
@@ -89,6 +91,39 @@ test('factory database starts with exactly two permanent admins and no student o
   assert.equal(Object.prototype.hasOwnProperty.call(safe, 'hashIterations'), false);
   assert.equal(Object.prototype.hasOwnProperty.call(safe, 'password'), false);
   assert.doesNotThrow(() => validateDatabase(db));
+});
+
+test('students and teachers can change their own password after verification', () => {
+  const admin = freshAdminSession();
+  const payload = studentPayload({ loginId: 'password-student', serial: 'STU-9701' });
+  const created = createSerialEntry(payload, 'student', admin);
+  assert.equal(created.ok, true, Object.values(created.errors || {}).join(' '));
+  const signedIn = login({ role: 'student', loginId: payload.loginId, password: payload.password });
+  assert.equal(signedIn.ok, true);
+
+  const wrongCurrent = changeOwnPassword({ currentPassword: 'not-current', newPassword: 'Changed@2026', confirmPassword: 'Changed@2026' }, signedIn.account);
+  assert.equal(wrongCurrent.ok, false);
+  assert.match(wrongCurrent.errors.currentPassword, /incorrect/i);
+
+  const mismatch = changeOwnPassword({ currentPassword: payload.password, newPassword: 'Changed@2026', confirmPassword: 'Different@2026' }, signedIn.account);
+  assert.equal(mismatch.ok, false);
+  assert.match(mismatch.errors.confirmPassword, /do not match/i);
+
+  const changed = changeOwnPassword({ currentPassword: payload.password, newPassword: 'Changed@2026', confirmPassword: 'Changed@2026' }, signedIn.account);
+  assert.equal(changed.ok, true, Object.values(changed.errors || {}).join(' '));
+  assert.equal(Object.prototype.hasOwnProperty.call(changed.account, 'password'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(changed.account, 'salt'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(changed.account, 'passwordHash'), false);
+  logout();
+
+  const oldLogin = login({ role: 'student', loginId: payload.loginId, password: payload.password });
+  assert.equal(oldLogin.ok, false);
+  const newLogin = login({ role: 'student', loginId: payload.loginId, password: 'Changed@2026' });
+  assert.equal(newLogin.ok, true);
+  assert.equal(newLogin.account.name, payload.name);
+  assert.equal(newLogin.account.className, payload.className);
+  assert.equal(newLogin.account.serial, payload.serial);
+  logout();
 });
 
 test('both permanent administrator usernames are present', () => {

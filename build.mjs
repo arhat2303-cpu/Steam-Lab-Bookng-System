@@ -7,14 +7,18 @@ const sourceFiles = [
   'src/core.js',
   'src/scheduler.js',
   'src/estimate.js',
+  'src/fflate.js',
+  'src/xlsx.js',
   'src/db.js',
+  'src/serials.js',
   'src/api.js',
   'src/selftest.js',
   'src/ui.js'
 ];
 
 const importPattern = /^\s*import\s+\{([^}]+)\}\s+from\s+['"][^'"]+['"];\s*$/gm;
-const exportPattern = /^\s*export\s+((?:async\s+)?(?:function|const|let|class)\s+([A-Za-z_$][\w$]*))/gm;
+const exportPattern = /^\s*export\s+((?:async\s+)?(?:function|const|let|var|class)\s+([A-Za-z_$][\w$]*))/gm;
+const namedExportPattern = /^\s*export\s*\{([^}]+)\};?\s*$/gm;
 
 function importedNames(specifier) {
   return specifier
@@ -24,8 +28,12 @@ function importedNames(specifier) {
     .map((part) => part.replace(/\s+as\s+/g, ': '));
 }
 
-function localNames(specifier) {
-  return importedNames(specifier).map((part) => part.split(':')[1]?.trim() || part.trim());
+function sourceNames(specifier) {
+  return specifier
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => part.split(/\s+as\s+/)[0].trim());
 }
 
 function moduleBundle(code, filename, available) {
@@ -33,15 +41,23 @@ function moduleBundle(code, filename, available) {
   const importLines = [];
   let withoutImports = code.replace(importPattern, (_match, specifier) => {
     const parts = importedNames(specifier);
-    for (const name of localNames(specifier)) {
+    for (const name of sourceNames(specifier)) {
       if (!available.has(name)) throw new Error(`build.mjs: ${filename} imports ${name} before it is exported`);
     }
     importLines.push(`const { ${parts.join(', ')} } = __SL;`);
     return '';
   });
   withoutImports = withoutImports.replace(exportPattern, (_match, declaration, name) => {
-    exportNames.push(name);
+    exportNames.push({ local: name, exported: name });
     return declaration;
+  });
+  withoutImports = withoutImports.replace(namedExportPattern, (_match, specifier) => {
+    for (const part of specifier.split(',').map((entry) => entry.trim()).filter(Boolean)) {
+      const match = part.match(/^([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$][\w$]*))?$/);
+      if (!match) throw new Error(`build.mjs could not inline named export ${part} in ${filename}`);
+      exportNames.push({ local: match[1], exported: match[2] || match[1] });
+    }
+    return '';
   });
   if (/^\s*import\s/m.test(withoutImports) || /^\s*export\s/m.test(withoutImports)) {
     throw new Error(`build.mjs could not inline module syntax in ${filename}`);
@@ -49,8 +65,8 @@ function moduleBundle(code, filename, available) {
   if (/<\/script/i.test(withoutImports)) {
     throw new Error(`build.mjs found an unsafe closing script tag in ${filename}`);
   }
-  for (const name of exportNames) available.add(name);
-  const exportAssignments = exportNames.map((name) => `__SL.${name} = ${name};`).join('\n');
+  for (const entry of exportNames) available.add(entry.exported);
+  const exportAssignments = exportNames.map((entry) => `__SL.${entry.exported} = ${entry.local};`).join('\n');
   return `/* ${filename} */\n(function () {\n'use strict';\n${importLines.join('\n')}\n${withoutImports.trim()}\n${exportAssignments}\n})();`;
 }
 

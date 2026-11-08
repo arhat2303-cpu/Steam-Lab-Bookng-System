@@ -12,6 +12,15 @@ import {
 } from './db.js';
 import { estimateFromFile, isSupportedUpload, getExtension, MODEL_EXTENSIONS, IMAGE_EXTENSIONS } from './estimate.js';
 import { scheduleRequests } from './scheduler.js';
+import {
+  SERIAL_TEMPLATE_FILE, SERIAL_TEMPLATE_MIME, buildSerialsTemplate, parseSerialsWorkbook
+} from './xlsx.js';
+import {
+  prepareSerialRows, applySerialRows,
+  createSerialRecord as createSerialRecordPure,
+  updateSerialRecord as updateSerialRecordPure,
+  deleteSerialRecord as deleteSerialRecordPure
+} from './serials.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -698,6 +707,92 @@ export function deleteAccount(id, actor, now = Date.now()) {
   return { ok: true, errors: {} };
 }
 
+export function serialsTemplate(actor) {
+  requireAdmin(actor);
+  return {
+    fileName: SERIAL_TEMPLATE_FILE,
+    mime: SERIAL_TEMPLATE_MIME,
+    bytes: buildSerialsTemplate()
+  };
+}
+
+export function previewSerialsWorkbook(bytes, actor) {
+  requireAdmin(actor);
+  const parsed = parseSerialsWorkbook(bytes);
+  const preview = prepareSerialRows(getDb(), parsed.rows);
+  return { ...preview, sheets: parsed.sheets };
+}
+
+export function importSerialRows(rows, actor, now = Date.now()) {
+  const admin = requireAdmin(actor);
+  const db = getDb();
+  const result = applySerialRows(db, Array.isArray(rows) ? rows : [], admin, now);
+  commitDb();
+  return result;
+}
+
+export function bulkCreateSerialRows(rows, role, actor, now = Date.now()) {
+  const admin = requireAdmin(actor);
+  const safeRole = role === 'teacher' ? 'teacher' : 'student';
+  const db = getDb();
+  const result = applySerialRows(db, (Array.isArray(rows) ? rows : []).map((row) => ({ ...row, role: safeRole })), admin, now);
+  commitDb();
+  return { ...result, role: safeRole };
+}
+
+export function createSerialEntry(raw, role, actor, now = Date.now()) {
+  const admin = requireAdmin(actor);
+  const db = getDb();
+  const result = createSerialRecordPure(db, raw, role, admin, now);
+  if (result.ok) commitDb();
+  return result;
+}
+
+export function updateSerialEntry(id, raw, role, actor, now = Date.now()) {
+  const admin = requireAdmin(actor);
+  const db = getDb();
+  const result = updateSerialRecordPure(db, id, raw, role, admin, now);
+  if (result.ok) commitDb();
+  return result;
+}
+
+export function deleteSerialEntry(id, actor, now = Date.now()) {
+  const admin = requireAdmin(actor);
+  const db = getDb();
+  const result = deleteSerialRecordPure(db, id, admin, now);
+  if (result.ok) commitDb();
+  return result;
+}
+
+export function changeOwnPassword(payload, actor, now = Date.now()) {
+  const session = requireSession(actor);
+  if (!['student', 'teacher'].includes(session.role)) {
+    throw new Error('Only student and teacher accounts can change their own password here.');
+  }
+  const db = getDb();
+  const account = findAccountById(db, session.id);
+  if (!account) throw new Error('The signed-in account no longer exists.');
+  const currentPassword = String(payload.currentPassword || '');
+  const newPassword = String(payload.newPassword || '');
+  const confirmPassword = String(payload.confirmPassword || '');
+  const errors = {};
+  if (!currentPassword) errors.currentPassword = 'Enter your current password.';
+  if (!newPassword) errors.newPassword = 'Enter a new password.';
+  else if (newPassword.length < 6) errors.newPassword = 'Use at least 6 characters for the new password.';
+  else if (newPassword.length > 128) errors.newPassword = 'Use 128 characters or fewer for the new password.';
+  if (!confirmPassword) errors.confirmPassword = 'Confirm the new password.';
+  else if (newPassword !== confirmPassword) errors.confirmPassword = 'The new password and confirmation do not match.';
+  if (currentPassword && !verifyPassword(currentPassword, account)) errors.currentPassword = 'Current password is incorrect.';
+  if (Object.keys(errors).length) return { ok: false, errors };
+  account.salt = makeSalt();
+  account.passwordHash = hashPassword(newPassword, account.salt, PASSWORD_HASH_ITERATIONS);
+  account.hashIterations = PASSWORD_HASH_ITERATIONS;
+  account.passwordUpdatedAt = now;
+  addActivity(db, session, 'password', `${session.name} changed their own password.`, now);
+  commitDb();
+  return { ok: true, errors: {}, account: publicAccount(account) };
+}
+
 export function generateSerials(raw, actor, now = Date.now()) {
   const admin = requireAdmin(actor);
   const db = getDb();
@@ -954,7 +1049,8 @@ export function exportRequestsCsv(db) {
   return [header, ...rows].map((row) => row.map(csvEscape).join(',')).join('\r\n');
 }
 
-export function exportSerialsCsv(db) {
+export function exportSerialsCsv(db, actor) {
+  requireAdmin(actor);
   const header = ['Serial', 'Role', 'Status', 'Assigned to', 'Assigned at'];
   const rows = db.serials.map((serial) => {
     const account = serial.assignedTo ? findAccountById(db, serial.assignedTo) : null;

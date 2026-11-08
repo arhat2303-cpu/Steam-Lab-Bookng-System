@@ -25,7 +25,7 @@ export const PERMANENT_ADMINS = [
   {
     id: 'acc-admin-arhatshah8149',
     role: 'admin',
-    name: 'Administrator 1',
+    name: 'ARHAT SHAH',
     loginId: 'ARHATSHAH8149',
     salt: '700d7730099c03970b620b022ad82575',
     passwordHash: '7587034d5f0d1deb6359c1969922ba3ea39f40df376507809490ff9d793a5427',
@@ -34,7 +34,7 @@ export const PERMANENT_ADMINS = [
   {
     id: 'acc-admin-ruthvika20',
     role: 'admin',
-    name: 'Administrator 2',
+    name: 'RUTHVIKA VANKADHARA',
     loginId: 'RUTHVIKA20',
     salt: 'edb1b5eb720f483b71a2d5893648dbb2',
     passwordHash: 'a5109b7be61c9de9fb337e0c065afb248a3795b5f5c90cb6d90dc28b7c0d7224',
@@ -57,7 +57,7 @@ function finiteNumber(value, fallback) {
   return Number.isFinite(number) ? number : fallback;
 }
 
-function normaliseSerial(value) {
+export function normaliseSerial(value) {
   return String(value || '').trim().toUpperCase();
 }
 
@@ -256,6 +256,19 @@ export function normaliseDatabase(candidate) {
     const safe = { ...account };
     delete safe.password;
     delete safe.serialBoundAt;
+    const canonicalAdmin = PERMANENT_ADMINS.find((admin) => admin.id === safe.id
+      || String(safe.loginId || '').toUpperCase() === admin.loginId.toUpperCase());
+    if (canonicalAdmin) {
+      safe.id = canonicalAdmin.id;
+      safe.name = canonicalAdmin.name;
+      safe.loginId = canonicalAdmin.loginId;
+      safe.role = 'admin';
+      safe.className = '';
+      safe.serial = null;
+      safe.serialAssignedAt = null;
+      safe.active = true;
+      safe.permanent = true;
+    }
     const assignedAt = Number(safe.serialAssignedAt || 0);
     return {
       ...safe,
