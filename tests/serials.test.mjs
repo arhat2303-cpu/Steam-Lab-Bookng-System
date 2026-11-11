@@ -138,7 +138,7 @@ test('bulk import creates synchronised accounts and serial records without expos
   assert.equal(result.successful, 2);
   assert.equal(result.unsuccessful, 0);
   assert.equal(result.created.length, 2);
-  assert.equal(db.accounts.length, 4);
+  assert.equal(db.accounts.length, 5);
   assert.equal(db.serials.length, 2);
   for (const account of db.accounts) {
     assert.equal(Object.prototype.hasOwnProperty.call(account, 'password'), false);
@@ -194,11 +194,14 @@ test('persisted permanent administrator display names are normalised to the requ
   const db = createFactoryDatabase();
   db.accounts[0].name = 'Administrator 1';
   db.accounts[1].name = 'Administrator 2';
+  db.accounts[2].name = 'Administrator 3';
   const normalised = normaliseDatabase(db);
   assert.equal(normalised.accounts[0].name, 'ARHAT SHAH');
   assert.equal(normalised.accounts[1].name, 'RUTHVIKA VANKADHARA');
+  assert.equal(normalised.accounts[2].name, 'Shashmith Chatterjee');
   assert.equal(normalised.accounts[0].role, 'admin');
   assert.equal(normalised.accounts[1].permanent, true);
+  assert.equal(normalised.accounts[2].permanent, true);
   assert.doesNotThrow(() => validateDatabase(normalised));
 });
 

@@ -707,6 +707,65 @@ export function deleteAccount(id, actor, now = Date.now()) {
   return { ok: true, errors: {} };
 }
 
+function adminAccountPayload(raw) {
+  return {
+    role: 'admin',
+    name: String(raw.name || '').trim(),
+    loginId: String(raw.username || raw.loginId || '').trim(),
+    password: String(raw.password || ''),
+    className: '',
+    serial: '',
+    active: raw.active !== false,
+    autoApprove: false
+  };
+}
+
+function adminAccountErrors(errors) {
+  const mapped = { ...errors };
+  if (mapped.loginId) {
+    mapped.username = mapped.loginId;
+    delete mapped.loginId;
+  }
+  if (mapped.role) {
+    mapped.general = mapped.general || mapped.role;
+    delete mapped.role;
+  }
+  return mapped;
+}
+
+export function createAdminAccount(raw, actor, now = Date.now()) {
+  requireAdmin(actor);
+  const result = createAccount(adminAccountPayload(raw), actor, now);
+  return result.ok ? result : { ok: false, errors: adminAccountErrors(result.errors) };
+}
+
+export function updateAdminAccount(id, raw, actor, now = Date.now()) {
+  requireAdmin(actor);
+  const db = getDb();
+  const account = findAccountById(db, id);
+  if (!account) return { ok: false, errors: { general: 'That administrator account no longer exists.' } };
+  if (account.role !== 'admin') return { ok: false, errors: { general: 'That account is not an administrator.' } };
+  if (isPermanentAdmin(account)) return { ok: false, errors: { general: 'Permanent administrator accounts are fixed and cannot be changed.' } };
+  const payload = adminAccountPayload(raw);
+  const activeAdmins = db.accounts.filter((entry) => entry.role === 'admin' && entry.active).length;
+  if (account.active && !payload.active && activeAdmins <= 1) {
+    return { ok: false, errors: { general: 'The last active administrator account cannot be deactivated.' } };
+  }
+  const result = updateAccount(id, payload, actor, now);
+  return result.ok ? result : { ok: false, errors: adminAccountErrors(result.errors) };
+}
+
+export function deleteAdminAccount(id, actor, now = Date.now()) {
+  requireAdmin(actor);
+  const db = getDb();
+  const account = findAccountById(db, id);
+  if (!account) return { ok: false, errors: { general: 'That administrator account no longer exists.' } };
+  if (account.role !== 'admin') return { ok: false, errors: { general: 'That account is not an administrator.' } };
+  if (isPermanentAdmin(account)) return { ok: false, errors: { general: 'Permanent administrator accounts cannot be deleted.' } };
+  const result = deleteAccount(id, actor, now);
+  return result.ok ? result : { ok: false, errors: adminAccountErrors(result.errors) };
+}
+
 export function serialsTemplate(actor) {
   requireAdmin(actor);
   return {

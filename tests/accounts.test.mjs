@@ -6,7 +6,8 @@ import {
 } from '../src/db.js';
 import {
   getSessionAccount, login, logout, createAccount, updateAccount, deleteAccount,
-  approveRequest, createSerialEntry, changeOwnPassword
+  approveRequest, createSerialEntry, changeOwnPassword,
+  createAdminAccount, updateAdminAccount, deleteAdminAccount
 } from '../src/api.js';
 
 let failures = 0;
@@ -69,13 +70,14 @@ function teacherPayload(overrides = {}) {
   };
 }
 
-test('factory database starts with exactly two permanent admins and no student or teacher accounts', () => {
+test('factory database starts with exactly three permanent admins and no student or teacher accounts', () => {
   freshAdminSession();
   const db = getDb();
-  assert.equal(db.accounts.length, 2);
-  assert.equal(db.accounts.filter((account) => account.role === 'admin' && account.permanent).length, 2);
+  assert.equal(db.accounts.length, 3);
+  assert.equal(db.accounts.filter((account) => account.role === 'admin' && account.permanent).length, 3);
   assert.equal(db.accounts.find((account) => account.loginId === 'ARHATSHAH8149').name, 'ARHAT SHAH');
   assert.equal(db.accounts.find((account) => account.loginId === 'ruthvikabrs123').name, 'RUTHVIKA VANKADHARA');
+  assert.equal(db.accounts.find((account) => account.loginId === 'SHASHI1234').name, 'Shashmith Chatterjee');
   assert.equal(db.accounts.filter((account) => account.role === 'student' || account.role === 'teacher').length, 0);
   assert.equal(db.requests.length, 0);
   assert.equal(db.serials.length, 0);
@@ -126,12 +128,13 @@ test('students and teachers can change their own password after verification', (
   logout();
 });
 
-test('both permanent administrator usernames are present', () => {
+test('all three permanent administrator usernames are present', () => {
   freshAdminSession();
   const db = getDb();
   assert.ok(findAccountByLogin(db, 'ARHATSHAH8149', 'admin'));
   assert.ok(findAccountByLogin(db, 'ruthvikabrs123', 'admin'));
-  assert.equal(db.accounts.filter((account) => account.role === 'admin').length, 2);
+  assert.ok(findAccountByLogin(db, 'SHASHI1234', 'admin'));
+  assert.equal(db.accounts.filter((account) => account.role === 'admin').length, 3);
 });
 
 test('a persisted retired administrator username is migrated without resetting existing data', () => {
@@ -151,6 +154,67 @@ test('a persisted retired administrator username is migrated without resetting e
   assert.ok(findAccountByLogin(validated, 'ruthvikabrs123', 'admin'));
   assert.equal(findAccountByLogin(validated, 'RUTHVIKA20', 'admin'), null);
   assert.doesNotThrow(() => validateDatabase(validated));
+});
+
+test('an older two-admin database gains the third permanent admin without losing data', () => {
+  freshAdminSession();
+  const legacy = JSON.parse(JSON.stringify(getDb()));
+  legacy.accounts = legacy.accounts.filter((account) => account.loginId !== 'SHASHI1234');
+  legacy.settings.dailyCapMinutes = 391;
+  assert.equal(legacy.accounts.length, 2);
+  const migrated = validateDatabase(legacy);
+  assert.equal(migrated.accounts.filter((account) => account.role === 'admin' && account.permanent).length, 3);
+  const added = findAccountByLogin(migrated, 'SHASHI1234', 'admin');
+  assert.equal(added.name, 'Shashmith Chatterjee');
+  assert.equal(added.permanent, true);
+  assert.equal(migrated.settings.dailyCapMinutes, 391);
+  assert.doesNotThrow(() => validateDatabase(migrated));
+});
+
+test('administrators can create other administrators who can also add administrators', () => {
+  const admin = freshAdminSession();
+  const password = generatedPassword();
+  const created = createAdminAccount({ name: 'Added Administrator', username: 'added.admin', password, active: true }, admin);
+  assert.equal(created.ok, true, Object.values(created.errors || {}).join(' '));
+  assert.equal(created.account.role, 'admin');
+  assert.equal(created.account.permanent, false);
+  assert.equal(Object.prototype.hasOwnProperty.call(created.account, 'passwordHash'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(created.account, 'password'), false);
+
+  const signedIn = login({ role: 'admin', loginId: 'added.admin', password });
+  assert.equal(signedIn.ok, true);
+  assert.equal(signedIn.account.role, 'admin');
+  const nested = createAdminAccount({ name: 'Nested Administrator', username: 'nested.admin', password: generatedPassword(), active: true }, signedIn.account);
+  assert.equal(nested.ok, true, Object.values(nested.errors || {}).join(' '));
+  assert.equal(nested.account.role, 'admin');
+  logout();
+});
+
+test('added administrators can be edited and deleted, while permanent admins stay protected', () => {
+  const admin = freshAdminSession();
+  const originalPassword = generatedPassword();
+  const created = createAdminAccount({ name: 'Editable Administrator', username: 'editable.admin', password: originalPassword, active: true }, admin);
+  assert.equal(created.ok, true, Object.values(created.errors || {}).join(' '));
+  const id = created.account.id;
+  const newPassword = generatedPassword();
+  const updated = updateAdminAccount(id, { name: 'Renamed Administrator', username: 'renamed.admin', password: newPassword, active: true }, admin);
+  assert.equal(updated.ok, true, Object.values(updated.errors || {}).join(' '));
+  assert.equal(updated.account.name, 'Renamed Administrator');
+  assert.equal(updated.account.loginId, 'renamed.admin');
+  assert.equal(updateAdminAccount(id, { name: 'Duplicate', username: 'ARHATSHAH8149', password: generatedPassword(), active: true }, admin).ok, false);
+
+  logout();
+  const changedLogin = login({ role: 'admin', loginId: 'renamed.admin', password: newPassword });
+  assert.equal(changedLogin.ok, true);
+  logout();
+  const adminAgain = becomeFirstAdmin();
+  const permanent = getDb().accounts.find((account) => account.loginId === 'SHASHI1234');
+  assert.equal(updateAdminAccount(permanent.id, { name: 'Changed', username: 'changed.admin', password: generatedPassword(), active: true }, adminAgain).ok, false);
+  assert.equal(deleteAdminAccount(permanent.id, adminAgain).ok, false);
+  const deleted = deleteAdminAccount(id, adminAgain);
+  assert.equal(deleted.ok, true, Object.values(deleted.errors || {}).join(' '));
+  assert.equal(getDb().accounts.filter((account) => account.role === 'admin').length, 3);
+  assert.doesNotThrow(() => validateDatabase(getDb()));
 });
 
 test('login verifies salted hashes without a serial and returns a credential-free account', () => {
@@ -263,7 +327,7 @@ test('permanent administrator accounts cannot be changed or deleted', () => {
   }, admin);
   assert.equal(updated.ok, false);
   assert.match(updated.errors.general, /fixed/i);
-  assert.equal(getDb().accounts.length, 2);
+  assert.equal(getDb().accounts.length, 3);
   assert.ok(findAccountByLogin(getDb(), permanent.loginId, 'admin'));
 });
 
@@ -323,7 +387,7 @@ test('student and teacher CRUD persists registered details and username/password
   const removedTeacher = deleteAccount(createdTeacher.account.id, adminAgain);
   assert.equal(removedTeacher.ok, true, Object.values(removedTeacher.errors || {}).join(' '));
   db = getDb();
-  assert.equal(db.accounts.length, 2);
+  assert.equal(db.accounts.length, 3);
   assert.equal(db.accounts.filter((account) => account.role === 'student' || account.role === 'teacher').length, 0);
   assert.equal(db.serials.find((serial) => serial.code === 'STU-9502').status, 'free');
   assert.doesNotThrow(() => validateDatabase(db));

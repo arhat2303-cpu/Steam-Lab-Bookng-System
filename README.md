@@ -6,12 +6,13 @@ The original design, responsive layout, request workflow, STL/G-code estimator, 
 
 ## Start state and accounts
 
-A clean install starts with **exactly two permanent administrator accounts**:
+A clean install starts with **exactly three permanent administrator accounts**:
 
 - `ARHATSHAH8149` — display name **ARHAT SHAH**
 - `ruthvikabrs123` — display name **RUTHVIKA VANKADHARA**
+- `SHASHI1234` — display name **Shashmith Chatterjee**
 
-The protected password hashes are unchanged; the second administrator's login username is now `ruthvikabrs123`, while the display names remain **ARHAT SHAH** and **RUTHVIKA VANKADHARA**. The previous second-administrator username is retired and no longer signs in. Existing local databases are migrated automatically to the new username on load, preserving settings, accounts, serials, and requests. Their passwords are **not** stored as plaintext in source, `dist/index.html`, the UI, this README, exports, database responses, or browser-visible account objects. Only per-account salted hashes are embedded. Both accounts have identical full administrator permissions and fixed, protected records.
+The protected password hashes are unchanged; the second administrator's login username is `ruthvikabrs123`, and the third administrator is `SHASHI1234` with display name **Shashmith Chatterjee**. The previous second-administrator username is retired and no longer signs in. Existing local databases are migrated automatically to the current usernames and to the three protected administrators on load, preserving settings, accounts, serials, and requests. Their passwords are **not** stored as plaintext in source, `dist/index.html`, the UI, this README, exports, database responses, or browser-visible account objects. Only per-account salted hashes are embedded. All three permanent accounts have identical full administrator permissions and fixed, protected records.
 
 There are **no pre-created student accounts, teacher accounts, serial numbers, or booking requests**. No sample student/teacher accounts or sample login credentials remain, and the website does not display issued credentials anywhere.
 
@@ -42,6 +43,10 @@ The Serials workspace contains **Download Excel Template** and **Upload Excel Fi
 
 Upload reads every populated row, detects duplicates and incomplete/incorrect records, and shows a preview with “Provided”/“Missing” password status before final confirmation. No password value is shown in the preview. **Confirm import** creates all valid linked serial records and login accounts without manual recreation, then shows a success/error report. CSV serial export and the existing free-code assignment controls remain available. The HTTP-looking strings in the built artifact are inert OOXML XML namespace identifiers, not network requests.
 
+### Administrator accounts
+
+The Serials workspace also contains an **Administrator accounts** section. Any authenticated administrator can create another administrator with a separate Full Name, Username, and Password. Added administrators have full administrator permissions, including the ability to add further administrators. They are non-permanent, so another administrator can edit their name, username, password, active status, or delete them with confirmation. The three built-in permanent administrators are protected from editing and deletion, and the last active administrator cannot be deleted or deactivated. Admin-created accounts never contain plaintext passwords in the database or public responses.
+
 ### Registered identity and password changes
 
 After sign-in, registered account details are loaded automatically from the administrator-created record and displayed in a read-only **Registered account** panel. Students see Full Name, Username, Class, and Student Serial Number; teachers see Full Name, Username, Role, and any optional issued serial; administrators see Full Name, Username, Role, and full account scope.
@@ -60,7 +65,7 @@ Within that constraint, the implementation uses:
 - `publicAccount()` responses and credential-free sessions that strip `salt`, `passwordHash`, `hashIterations`, and any `password` field;
 - `requireSession()` / `requireAdmin()` guards on authentication, account, serial, bulk, Excel, export, and workflow APIs, plus UI route guards;
 - strict `steamlab-db-v2` validation that rejects plaintext password fields, duplicate usernames/serials, invalid hashes, and altered permanent administrator hashes;
-- automatic replacement of invalid or older local data with the clean two-administrator factory database.
+- automatic replacement of invalid local data with the clean three-administrator factory database, plus in-place migration for valid older databases.
 
 Passwords are never rendered after account creation. Password changes create a new random salt and a new iterated hash. Serial records and login accounts are synchronised on create, edit, delete, bulk import, and Excel import.
 
@@ -97,11 +102,12 @@ Latest results:
 
 - `node --check`: PASS for all source, build, and test JavaScript/ESM files.
 - Scheduler/estimator tests: **12/12 PASS**.
-- Account/authentication tests: **11/11 PASS** — factory start state, requested display names, both current admin usernames, persisted retired-username migration without data loss, salted login, iterated verification, public-account sanitization, forged-actor session rejection, duplicate username/serial rejection, admin-only CRUD, permanent-admin protection, student/teacher CRUD, and self-service password changes.
+- Account/authentication tests: **14/14 PASS** — three-admin factory start state, requested display names, all current admin usernames, retired-username and third-admin migrations without data loss, admin-created/nested/edited/deleted administrators, permanent-admin protection, salted login, iterated verification, public-account sanitization, forged-actor session rejection, duplicate username/serial rejection, admin-only CRUD, student/teacher CRUD, and self-service password changes.
 - Serial/XLSX tests: **6/6 PASS** — real two-sheet workbook, exact headers, row parsing with separate full-name/username fields, duplicate/incomplete validation, synchronised bulk creation, hashed sanitized records, edit/delete synchronisation, and persisted display-name normalization.
 - In-page `#selftest`: **12/12 PASS** in a browser and in isolated Node execution.
 - `node build.mjs`: one self-contained `dist/index.html` with 10 inlined modules, no external runtime requests, no external source references, no `fetch`, no WebCrypto dependency, no native dialogs, no TODOs, and no placeholder text. All URL-like strings are OOXML namespace identifiers.
 - Static scans: no plaintext administrator passwords, retired administrator username, old demo credentials, demo account seeds, or test-fixture password values in `dist`, UI, README, exports, previews, reports, or persisted database responses. The generated database never stores plaintext passwords.
+- Admin-management E2E: creation by a permanent administrator, nested creation by an added administrator, edit, sign-in with the changed password, deletion with confirmation, and permanent-admin protection all PASS.
 
 Headless Chromium E2E covered four contexts: a normal tab, a retired-username migration tab, a `sandbox="allow-scripts"` iframe with blocked localStorage, and the generated `file://` artifact. Each context had zero console errors, zero page errors, and zero external runtime requests.
 
@@ -117,8 +123,9 @@ The requested acceptance checks passed in the normal browser:
 8. Duplicate username/serial and missing-field detection in individual, bulk, and Excel flows.
 9. Student and teacher self-service password changes with wrong-current, mismatch, old-password rejection, and new-password sign-in.
 10. Administrator access restrictions for student/teacher roles, including direct URL hashes and no removed Accounts controls.
+11. All three permanent administrator sign-ins plus admin-created administrator creation, nested creation, edit, sign-in, delete, and permanent-admin protection.
 
-Additional checks passed: both administrator display names, new-username sign-in, retired-username rejection, migration with preserved settings, persistence after reload, every admin view rendering, preserved serial CSV export, settings save, factory reset, offline navigation, in-page self-test, and the clean two-administrator factory database with zero student/teacher accounts, serials, or requests.
+Additional checks passed: all three administrator display names, new-username sign-in, retired-username rejection, migration with preserved settings, persistence after reload, every admin view rendering, preserved serial CSV export, settings save, factory reset, offline navigation, in-page self-test, and the clean three-administrator factory database with zero student/teacher accounts, serials, or requests.
 
 ## Repository layout
 
@@ -130,7 +137,7 @@ Additional checks passed: both administrator display names, new-username sign-in
 - `src/serials.js` — serial validation, duplicate checks, account/serial synchronisation, CRUD, bulk application, and safe reports.
 - `src/api.js` — authentication, sessions, account CRUD, serial/XLSX/bulk APIs, password changes, requests, workflow, scheduler, reports, backups, and role guards.
 - `src/scheduler.js`, `src/estimate.js` — unchanged scheduler and STL/G-code estimator.
-- `src/ui.js`, `src/styles.css` — preserved layout/design with corrected role icons, registered identity, password change, and combined Serials workspace.
+- `src/ui.js`, `src/styles.css` — preserved layout/design with corrected role icons, registered identity, password change, combined Serials workspace, and administrator account management.
 - `src/selftest.js` — isolated in-app self-test.
 - `tests/scheduler.test.mjs`, `tests/accounts.test.mjs`, `tests/serials.test.mjs` — Node test suites.
 - `build.mjs` — inlines all modules/CSS into the single-file artifact.

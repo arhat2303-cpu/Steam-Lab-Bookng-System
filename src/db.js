@@ -20,7 +20,7 @@ export const VALID_STATUSES = ['pending', 'approved', 'rejected', 'printing', 'p
 export const ACTIVE_STATUSES = ['pending', 'approved', 'printing', 'printed'];
 export const VALID_PRIORITIES = ['urgent', 'high', 'normal', 'low'];
 
-/* The two permanent administrator credentials are stored only as iterated salted hashes. */
+/* Permanent administrator credentials are stored only as iterated salted hashes. */
 export const PERMANENT_ADMINS = [
   {
     id: 'acc-admin-arhatshah8149',
@@ -38,6 +38,15 @@ export const PERMANENT_ADMINS = [
     loginId: 'ruthvikabrs123',
     salt: 'edb1b5eb720f483b71a2d5893648dbb2',
     passwordHash: 'a5109b7be61c9de9fb337e0c065afb248a3795b5f5c90cb6d90dc28b7c0d7224',
+    hashIterations: PASSWORD_HASH_ITERATIONS
+  },
+  {
+    id: 'acc-admin-shashi1234',
+    role: 'admin',
+    name: 'Shashmith Chatterjee',
+    loginId: 'SHASHI1234',
+    salt: 'mwc9esjd-0cxu9hq21pmf-f3hu2mmb6z5',
+    passwordHash: 'd28e9917a12528cc2c42def0f488777ae142ac6f43df23204dee942b6018f361',
     hashIterations: PASSWORD_HASH_ITERATIONS
   }
 ];
@@ -136,9 +145,8 @@ export function createAccountRecord(payload, now = Date.now()) {
   };
 }
 
-export function createFactoryDatabase(now = Date.now()) {
-  const settings = clone(DEFAULT_SETTINGS);
-  const accounts = PERMANENT_ADMINS.map((admin) => ({
+function factoryAdminAccount(admin, now) {
+  return {
     ...admin,
     className: '',
     serial: null,
@@ -148,7 +156,12 @@ export function createFactoryDatabase(now = Date.now()) {
     permanent: true,
     createdAt: now,
     passwordUpdatedAt: now
-  }));
+  };
+}
+
+export function createFactoryDatabase(now = Date.now()) {
+  const settings = clone(DEFAULT_SETTINGS);
+  const accounts = PERMANENT_ADMINS.map((admin) => factoryAdminAccount(admin, now));
   return {
     schema: 'steamlab-db-v2',
     version: 2,
@@ -165,9 +178,9 @@ export function createFactoryDatabase(now = Date.now()) {
       at: now,
       actor: 'system',
       action: 'factory',
-      detail: 'Two permanent administrator accounts created. No student or teacher accounts were pre-created.'
+      detail: 'Three permanent administrator accounts created. No student or teacher accounts were pre-created.'
     }],
-    counters: { request: 1, account: 3, studentSerial: 2000, teacherSerial: 1000 }
+    counters: { request: 1, account: PERMANENT_ADMINS.length + 1, studentSerial: 2000, teacherSerial: 1000 }
   };
 }
 
@@ -190,7 +203,7 @@ export function validateDatabase(raw) {
   assert(candidate.accounts.length > 0, 'Database must contain at least one account.');
   assert(candidate.accounts.some((account) => account && account.role === 'admin'), 'Database must contain an admin account.');
 
-  // Canonicalise before strict checks so a persisted retired admin username is migrated, not discarded.
+  // Canonicalise before strict checks so retired usernames and newly protected admins migrate without data loss.
   candidate = normaliseDatabase(candidate);
 
   const accountIds = new Set();
@@ -303,6 +316,14 @@ export function normaliseDatabase(candidate) {
       createdAt: finiteNumber(safe.createdAt, db.createdAt)
     };
   });
+  // Add any newly protected administrator to older persisted databases without clearing existing records.
+  for (const admin of PERMANENT_ADMINS) {
+    if (db.accounts.some((account) => account.id === admin.id)) continue;
+    const loginConflict = db.accounts.find((account) => String(account.loginId || '').toLowerCase() === admin.loginId.toLowerCase());
+    if (loginConflict) throw new Error(`Cannot add permanent administrator ${admin.loginId}: that username is already used.`);
+    db.accounts.push(factoryAdminAccount(admin, db.createdAt));
+  }
+
   db.serials = (Array.isArray(db.serials) ? db.serials : []).map((serial) => {
     const assignedAt = Number(serial.assignedAt || serial.boundAt || 0);
     return {
@@ -346,7 +367,7 @@ export function normaliseDatabase(candidate) {
   db.activity = Array.isArray(db.activity) ? db.activity.slice(-100) : [];
   db.counters = {
     request: Math.max(1, finiteNumber(db.counters && db.counters.request, 1)),
-    account: Math.max(1, finiteNumber(db.counters && db.counters.account, db.accounts.length + 1)),
+    account: Math.max(PERMANENT_ADMINS.length + 1, finiteNumber(db.counters && db.counters.account, db.accounts.length + 1)),
     studentSerial: Math.max(2000, finiteNumber(db.counters && db.counters.studentSerial, 2000)),
     teacherSerial: Math.max(1000, finiteNumber(db.counters && db.counters.teacherSerial, 1000))
   };

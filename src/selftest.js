@@ -117,12 +117,12 @@ export function runSelfTest() {
     saveDatabaseTo(db, tempStorage);
     const seeded = loadDatabaseFrom(tempStorage);
 
-    check('builds a factory store with only two permanent administrators', () => {
-      require(seeded.accounts.filter((account) => account.role === 'admin' && account.permanent).length === 2, 'expected two permanent administrator accounts');
+    check('builds a factory store with only three permanent administrators', () => {
+      require(seeded.accounts.filter((account) => account.role === 'admin' && account.permanent).length === 3, 'expected three permanent administrator accounts');
       require(seeded.accounts.filter((account) => account.role === 'student' || account.role === 'teacher').length === 2, 'expected two temporary non-admin accounts');
       require(!seeded.accounts.some((account) => Object.prototype.hasOwnProperty.call(account, 'password')), 'a plaintext password was exposed');
       require(isDatabaseLoaded() === realLoadedBefore, 'live database load state changed');
-      return '2 permanent admins, 2 isolated test accounts, no plaintext passwords';
+      return '3 permanent admins, 2 isolated test accounts, no plaintext passwords';
     });
 
     const created = createRequestRecord(db, {
@@ -222,7 +222,7 @@ export function runSelfTest() {
       const reloadedRequest = findRequestById(reloaded, requestId);
       require(reloadedRequest, 'request disappeared after reload');
       require(reloadedRequest.status === 'cancelled', `reloaded status is ${reloadedRequest.status}`);
-      require(reloaded.accounts.length === 4, 'account count changed after reload');
+      require(reloaded.accounts.length === seeded.accounts.length, 'account count changed after reload');
       return `${reloaded.requests.length} requests and ${reloaded.accounts.length} accounts reloaded`;
     });
 

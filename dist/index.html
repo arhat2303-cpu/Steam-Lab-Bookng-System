@@ -4976,7 +4976,7 @@ const VALID_STATUSES = ['pending', 'approved', 'rejected', 'printing', 'printed'
 const ACTIVE_STATUSES = ['pending', 'approved', 'printing', 'printed'];
 const VALID_PRIORITIES = ['urgent', 'high', 'normal', 'low'];
 
-/* The two permanent administrator credentials are stored only as iterated salted hashes. */
+/* Permanent administrator credentials are stored only as iterated salted hashes. */
 const PERMANENT_ADMINS = [
   {
     id: 'acc-admin-arhatshah8149',
@@ -4994,6 +4994,15 @@ const PERMANENT_ADMINS = [
     loginId: 'ruthvikabrs123',
     salt: 'edb1b5eb720f483b71a2d5893648dbb2',
     passwordHash: 'a5109b7be61c9de9fb337e0c065afb248a3795b5f5c90cb6d90dc28b7c0d7224',
+    hashIterations: PASSWORD_HASH_ITERATIONS
+  },
+  {
+    id: 'acc-admin-shashi1234',
+    role: 'admin',
+    name: 'Shashmith Chatterjee',
+    loginId: 'SHASHI1234',
+    salt: 'mwc9esjd-0cxu9hq21pmf-f3hu2mmb6z5',
+    passwordHash: 'd28e9917a12528cc2c42def0f488777ae142ac6f43df23204dee942b6018f361',
     hashIterations: PASSWORD_HASH_ITERATIONS
   }
 ];
@@ -5088,9 +5097,9 @@ function createAccountRecord(payload, now = Date.now()) {
     passwordUpdatedAt: now
   };
 }
-function createFactoryDatabase(now = Date.now()) {
-  const settings = clone(DEFAULT_SETTINGS);
-  const accounts = PERMANENT_ADMINS.map((admin) => ({
+
+function factoryAdminAccount(admin, now) {
+  return {
     ...admin,
     className: '',
     serial: null,
@@ -5100,7 +5109,11 @@ function createFactoryDatabase(now = Date.now()) {
     permanent: true,
     createdAt: now,
     passwordUpdatedAt: now
-  }));
+  };
+}
+function createFactoryDatabase(now = Date.now()) {
+  const settings = clone(DEFAULT_SETTINGS);
+  const accounts = PERMANENT_ADMINS.map((admin) => factoryAdminAccount(admin, now));
   return {
     schema: 'steamlab-db-v2',
     version: 2,
@@ -5117,9 +5130,9 @@ function createFactoryDatabase(now = Date.now()) {
       at: now,
       actor: 'system',
       action: 'factory',
-      detail: 'Two permanent administrator accounts created. No student or teacher accounts were pre-created.'
+      detail: 'Three permanent administrator accounts created. No student or teacher accounts were pre-created.'
     }],
-    counters: { request: 1, account: 3, studentSerial: 2000, teacherSerial: 1000 }
+    counters: { request: 1, account: PERMANENT_ADMINS.length + 1, studentSerial: 2000, teacherSerial: 1000 }
   };
 }
 
@@ -5141,7 +5154,7 @@ function validateDatabase(raw) {
   assert(candidate.accounts.length > 0, 'Database must contain at least one account.');
   assert(candidate.accounts.some((account) => account && account.role === 'admin'), 'Database must contain an admin account.');
 
-  // Canonicalise before strict checks so a persisted retired admin username is migrated, not discarded.
+  // Canonicalise before strict checks so retired usernames and newly protected admins migrate without data loss.
   candidate = normaliseDatabase(candidate);
 
   const accountIds = new Set();
@@ -5253,6 +5266,14 @@ function normaliseDatabase(candidate) {
       createdAt: finiteNumber(safe.createdAt, db.createdAt)
     };
   });
+  // Add any newly protected administrator to older persisted databases without clearing existing records.
+  for (const admin of PERMANENT_ADMINS) {
+    if (db.accounts.some((account) => account.id === admin.id)) continue;
+    const loginConflict = db.accounts.find((account) => String(account.loginId || '').toLowerCase() === admin.loginId.toLowerCase());
+    if (loginConflict) throw new Error(`Cannot add permanent administrator ${admin.loginId}: that username is already used.`);
+    db.accounts.push(factoryAdminAccount(admin, db.createdAt));
+  }
+
   db.serials = (Array.isArray(db.serials) ? db.serials : []).map((serial) => {
     const assignedAt = Number(serial.assignedAt || serial.boundAt || 0);
     return {
@@ -5296,7 +5317,7 @@ function normaliseDatabase(candidate) {
   db.activity = Array.isArray(db.activity) ? db.activity.slice(-100) : [];
   db.counters = {
     request: Math.max(1, finiteNumber(db.counters && db.counters.request, 1)),
-    account: Math.max(1, finiteNumber(db.counters && db.counters.account, db.accounts.length + 1)),
+    account: Math.max(PERMANENT_ADMINS.length + 1, finiteNumber(db.counters && db.counters.account, db.accounts.length + 1)),
     studentSerial: Math.max(2000, finiteNumber(db.counters && db.counters.studentSerial, 2000)),
     teacherSerial: Math.max(1000, finiteNumber(db.counters && db.counters.teacherSerial, 1000))
   };
@@ -6316,6 +6337,62 @@ function deleteAccount(id, actor, now = Date.now()) {
   commitDb();
   return { ok: true, errors: {} };
 }
+
+function adminAccountPayload(raw) {
+  return {
+    role: 'admin',
+    name: String(raw.name || '').trim(),
+    loginId: String(raw.username || raw.loginId || '').trim(),
+    password: String(raw.password || ''),
+    className: '',
+    serial: '',
+    active: raw.active !== false,
+    autoApprove: false
+  };
+}
+
+function adminAccountErrors(errors) {
+  const mapped = { ...errors };
+  if (mapped.loginId) {
+    mapped.username = mapped.loginId;
+    delete mapped.loginId;
+  }
+  if (mapped.role) {
+    mapped.general = mapped.general || mapped.role;
+    delete mapped.role;
+  }
+  return mapped;
+}
+function createAdminAccount(raw, actor, now = Date.now()) {
+  requireAdmin(actor);
+  const result = createAccount(adminAccountPayload(raw), actor, now);
+  return result.ok ? result : { ok: false, errors: adminAccountErrors(result.errors) };
+}
+function updateAdminAccount(id, raw, actor, now = Date.now()) {
+  requireAdmin(actor);
+  const db = getDb();
+  const account = findAccountById(db, id);
+  if (!account) return { ok: false, errors: { general: 'That administrator account no longer exists.' } };
+  if (account.role !== 'admin') return { ok: false, errors: { general: 'That account is not an administrator.' } };
+  if (isPermanentAdmin(account)) return { ok: false, errors: { general: 'Permanent administrator accounts are fixed and cannot be changed.' } };
+  const payload = adminAccountPayload(raw);
+  const activeAdmins = db.accounts.filter((entry) => entry.role === 'admin' && entry.active).length;
+  if (account.active && !payload.active && activeAdmins <= 1) {
+    return { ok: false, errors: { general: 'The last active administrator account cannot be deactivated.' } };
+  }
+  const result = updateAccount(id, payload, actor, now);
+  return result.ok ? result : { ok: false, errors: adminAccountErrors(result.errors) };
+}
+function deleteAdminAccount(id, actor, now = Date.now()) {
+  requireAdmin(actor);
+  const db = getDb();
+  const account = findAccountById(db, id);
+  if (!account) return { ok: false, errors: { general: 'That administrator account no longer exists.' } };
+  if (account.role !== 'admin') return { ok: false, errors: { general: 'That account is not an administrator.' } };
+  if (isPermanentAdmin(account)) return { ok: false, errors: { general: 'Permanent administrator accounts cannot be deleted.' } };
+  const result = deleteAccount(id, actor, now);
+  return result.ok ? result : { ok: false, errors: adminAccountErrors(result.errors) };
+}
 function serialsTemplate(actor) {
   requireAdmin(actor);
   return {
@@ -6786,6 +6863,9 @@ __SL.rerunScheduler = rerunScheduler;
 __SL.createAccount = createAccount;
 __SL.updateAccount = updateAccount;
 __SL.deleteAccount = deleteAccount;
+__SL.createAdminAccount = createAdminAccount;
+__SL.updateAdminAccount = updateAdminAccount;
+__SL.deleteAdminAccount = deleteAdminAccount;
 __SL.serialsTemplate = serialsTemplate;
 __SL.previewSerialsWorkbook = previewSerialsWorkbook;
 __SL.importSerialRows = importSerialRows;
@@ -6935,12 +7015,12 @@ function runSelfTest() {
     saveDatabaseTo(db, tempStorage);
     const seeded = loadDatabaseFrom(tempStorage);
 
-    check('builds a factory store with only two permanent administrators', () => {
-      require(seeded.accounts.filter((account) => account.role === 'admin' && account.permanent).length === 2, 'expected two permanent administrator accounts');
+    check('builds a factory store with only three permanent administrators', () => {
+      require(seeded.accounts.filter((account) => account.role === 'admin' && account.permanent).length === 3, 'expected three permanent administrator accounts');
       require(seeded.accounts.filter((account) => account.role === 'student' || account.role === 'teacher').length === 2, 'expected two temporary non-admin accounts');
       require(!seeded.accounts.some((account) => Object.prototype.hasOwnProperty.call(account, 'password')), 'a plaintext password was exposed');
       require(isDatabaseLoaded() === realLoadedBefore, 'live database load state changed');
-      return '2 permanent admins, 2 isolated test accounts, no plaintext passwords';
+      return '3 permanent admins, 2 isolated test accounts, no plaintext passwords';
     });
 
     const created = createRequestRecord(db, {
@@ -7040,7 +7120,7 @@ function runSelfTest() {
       const reloadedRequest = findRequestById(reloaded, requestId);
       require(reloadedRequest, 'request disappeared after reload');
       require(reloadedRequest.status === 'cancelled', `reloaded status is ${reloadedRequest.status}`);
-      require(reloaded.accounts.length === 4, 'account count changed after reload');
+      require(reloaded.accounts.length === seeded.accounts.length, 'account count changed after reload');
       return `${reloaded.requests.length} requests and ${reloaded.accounts.length} accounts reloaded`;
     });
 
@@ -7070,7 +7150,7 @@ __SL.runSelfTest = runSelfTest;
 'use strict';
 const { DB_KEY, getStorageNotice, stateRemove, clearFiles, downloadBlob, downloadText, escapeHtml, formatDateTime, formatDate, formatTime, formatDuration, formatLongWeekday, makeId, readFileBytes } = __SL;
 const { getDb, commitDb, DEFAULT_SETTINGS, findAccountById, findRequestById, findSerial } = __SL;
-const { bootstrap, ensureSeedFiles, getSessionAccount, login, logout, submitRequest, previewEstimate, getRequestFile, reestimateFromFile, approveRequest, rejectRequest, confirmSlot, startPrint, markPrinted, handOver, cancelRequest, rerunScheduler, assignSerial, updateSettings, resetSettings, computeReports, buildScheduleBoard, exportRequestsCsv, exportSerialsCsv, exportReportCsv, exportBackup, parseBackupText, importBackup, resetFactoryData, createSerialEntry, updateSerialEntry, deleteSerialEntry, bulkCreateSerialRows, serialsTemplate, previewSerialsWorkbook, importSerialRows, changeOwnPassword, STATUS_LABELS, PRIORITY_LABELS, MATERIALS, scheduleText, statusText, effectiveMinutes, getUploadExtensionsText, fileSizeLabel, decodeBackupBytes } = __SL;
+const { bootstrap, ensureSeedFiles, getSessionAccount, login, logout, submitRequest, previewEstimate, getRequestFile, reestimateFromFile, approveRequest, rejectRequest, confirmSlot, startPrint, markPrinted, handOver, cancelRequest, rerunScheduler, assignSerial, updateSettings, resetSettings, computeReports, buildScheduleBoard, exportRequestsCsv, exportSerialsCsv, exportReportCsv, exportBackup, parseBackupText, importBackup, resetFactoryData, createSerialEntry, updateSerialEntry, deleteSerialEntry, bulkCreateSerialRows, createAdminAccount, updateAdminAccount, deleteAdminAccount, serialsTemplate, previewSerialsWorkbook, importSerialRows, changeOwnPassword, STATUS_LABELS, PRIORITY_LABELS, MATERIALS, scheduleText, statusText, effectiveMinutes, getUploadExtensionsText, fileSizeLabel, decodeBackupBytes } = __SL;
 const { MODEL_EXTENSIONS, IMAGE_EXTENSIONS } = __SL;
 const { runSelfTest } = __SL;
 const esc = escapeHtml;
@@ -7152,6 +7232,10 @@ function blankPasswordForm() {
   return { currentPassword: '', newPassword: '', confirmPassword: '' };
 }
 
+function makeAdminForm() {
+  return { name: '', username: '', password: '', active: true };
+}
+
 function makeSettingsForm(settings) {
   const source = settings || DEFAULT_SETTINGS;
   return {
@@ -7198,7 +7282,10 @@ const state = {
   excelPreview: null,
   excelReport: null,
   passwordChangeOpen: false,
-  passwordForm: blankPasswordForm()
+  passwordForm: blankPasswordForm(),
+  adminFormOpen: false,
+  adminEditId: null,
+  adminForm: makeAdminForm()
 };
 
 function resetSerialWorkspace(role = 'student') {
@@ -7212,6 +7299,13 @@ function resetSerialWorkspace(role = 'student') {
   state.excelFileName = '';
   state.excelPreview = null;
   state.excelReport = null;
+  resetAdminWorkspace();
+}
+
+function resetAdminWorkspace() {
+  state.adminFormOpen = false;
+  state.adminEditId = null;
+  state.adminForm = makeAdminForm();
 }
 
 let fatalError = null;
@@ -7233,7 +7327,7 @@ const VIEW_META = {
   'admin-new-request': { title: 'Submit on behalf of a student', subtitle: 'Create a real student request using the same upload and estimator.' },
   'admin-serials': { title: 'Serial numbers', subtitle: 'Create, bulk-add, import, edit, delete, and export linked serial records and accounts.' },
   'admin-settings': { title: 'Lab settings', subtitle: 'Lab hours, capacity, lead time, upload limits, and build volume.' },
-  'admin-data': { title: 'Data & backup', subtitle: 'Export JSON and CSV, import a validated backup, or restore the two permanent administrator accounts.' }
+  'admin-data': { title: 'Data & backup', subtitle: 'Export JSON and CSV, import a validated backup, or restore the three permanent administrator accounts.' }
 };
 
 const NAV = {
@@ -7382,7 +7476,7 @@ function renderFatalMarkup() {
       <section class="fatal-panel">
         <div class="eyebrow">Boot safety panel</div>
         <h1>The app could not start normally</h1>
-        <p>Your data was not silently cleared. Use Reset app data below to start from the two permanent administrator accounts.</p>
+        <p>Your data was not silently cleared. Use Reset app data below to start from the three permanent administrator accounts.</p>
         <div class="message-box error"><strong>${esc(message)}</strong></div>
         <pre>${esc(stack)}</pre>
         <div class="btn-row">
@@ -8231,6 +8325,52 @@ function serialPoolHtml(db) {
     </section>`;
 }
 
+function renderAdminAccountForm(editing) {
+  const form = state.adminForm;
+  return `
+    <form data-form="admin-account" data-testid="admin-account-form" novalidate>
+      <div class="form-grid">
+        <div class="form-field"><label for="admin-name">Full Name</label><input id="admin-name" name="name" data-admin-field type="text" value="${esc(form.name)}" autocomplete="off">${fieldError('name')}</div>
+        <div class="form-field"><label for="admin-username">Username</label><input id="admin-username" name="username" data-admin-field type="text" value="${esc(form.username)}" autocomplete="off">${fieldError('username')}</div>
+        <div class="form-field"><label for="admin-password">${editing ? 'New password (blank keeps current)' : 'Password'}</label><input id="admin-password" name="password" data-admin-field type="password" value="${esc(form.password)}" autocomplete="new-password">${fieldError('password')}</div>
+        <div class="form-field">
+          <label>Account options</label>
+          <div class="checkbox-row" style="padding-top:10px"><label><input type="checkbox" name="active" data-admin-field${checked(form.active)}> Active</label></div>
+        </div>
+        <div class="form-field span-2">${fieldError('general')}</div>
+      </div>
+      <div class="btn-row" style="margin-top:18px">
+        <button class="btn primary" type="button" data-action="submit-form" data-form-kind="admin-account" data-testid="save-admin-account">${icon('save', 17)} ${editing ? 'Save changes' : 'Save administrator'}</button>
+        <button class="btn" type="button" data-action="cancel-admin-form">Cancel</button>
+      </div>
+    </form>`;
+}
+
+function adminAccountsHtml(db) {
+  const admins = db.accounts
+    .filter((account) => account.role === 'admin')
+    .slice()
+    .sort((a, b) => Number(Boolean(b.permanent)) - Number(Boolean(a.permanent)) || String(a.loginId).localeCompare(String(b.loginId)));
+  return `
+    <section class="card" data-testid="admin-account-section">
+      <div class="card-header">
+        <div><h2>Administrator accounts</h2><p>Add administrators with full dashboard permissions. Permanent administrators are protected; added administrators can be edited or deleted.</p></div>
+        <button class="btn primary" type="button" data-action="add-admin-form" data-testid="add-admin-account">${icon('plus', 17)} Add Administrator</button>
+      </div>
+      ${state.adminFormOpen ? renderAdminAccountForm(Boolean(state.adminEditId)) : ''}
+      <div class="table-wrap"><table>
+        <thead><tr><th>Full name</th><th>Username</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>${admins.map((account) => `<tr data-testid="admin-account-row" data-login-id="${esc(account.loginId)}" data-id="${esc(account.id)}">
+          <td><strong>${esc(account.name)}</strong><small>Created ${esc(formatDate(account.createdAt))}</small></td>
+          <td>${esc(account.loginId)}</td>
+          <td><span class="badge ${account.permanent ? 'neutral' : 'approved'}">${account.permanent ? 'Permanent' : 'Added by admin'}</span></td>
+          <td><span class="badge ${account.active ? 'handed' : 'cancelled'}">${account.active ? 'Active' : 'Inactive'}</span></td>
+          <td>${account.permanent ? '<small>Protected</small>' : `<div class="table-actions"><button class="btn small" type="button" data-action="edit-admin-account" data-id="${esc(account.id)}">${icon('edit', 15)} Edit</button><button class="btn small danger" type="button" data-action="delete-admin-account" data-id="${esc(account.id)}">${icon('trash', 15)} Delete</button></div>`}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+    </section>`;
+}
+
 function renderAdminSerials() {
   const db = getDb();
   const mode = state.serialMode === 'teacher' ? 'teacher' : 'student';
@@ -8256,7 +8396,8 @@ function renderAdminSerials() {
     </section>
     ${bulkSerialsHtml(mode)}
     ${excelSerialsHtml()}
-    ${serialPoolHtml(db)}`;
+    ${serialPoolHtml(db)}
+    ${adminAccountsHtml(db)}`;
 }
 
 function renderAdminSettings() {
@@ -8345,7 +8486,7 @@ function renderAdminData() {
         </div>
       </section>
       <section class="card">
-        <div class="card-header"><div><h2>Reset</h2><p>Restore the two permanent administrator accounts and clear all student accounts, teacher accounts, serials, settings, requests, and uploaded files.</p></div></div>
+        <div class="card-header"><div><h2>Reset</h2><p>Restore the three permanent administrator accounts and clear all student accounts, teacher accounts, serials, settings, requests, and uploaded files.</p></div></div>
         <div class="message-box warning">${icon('alert', 17)} This clears current app data and uploaded files from the browser store. It asks for an in-app confirmation first.</div>
         <div class="btn-row" style="margin-top:16px"><button class="btn danger" type="button" data-action="reset-factory">${icon('trash', 17)} Reset to factory accounts</button></div>
       </section>
@@ -8433,6 +8574,17 @@ function readPasswordForm(form) {
     confirmPassword: String(data.get('confirmPassword') || '')
   };
   return state.passwordForm;
+}
+
+function readAdminForm(form) {
+  const data = new FormData(form);
+  state.adminForm = {
+    name: String(data.get('name') || ''),
+    username: String(data.get('username') || ''),
+    password: String(data.get('password') || ''),
+    active: data.get('active') !== null
+  };
+  return state.adminForm;
 }
 
 function readSettingsForm(form) {
@@ -8772,6 +8924,53 @@ async function handleAction(action, button, event) {
         toast('Confirm serial deletion', 'info', 'Use the confirmation bar above.');
         break;
       }
+      case 'add-admin-form': {
+        state.adminFormOpen = true;
+        state.adminEditId = null;
+        state.adminForm = makeAdminForm();
+        clearActionErrors();
+        render();
+        toast('Add administrator', 'info', 'Full name, username, and password are entered separately.');
+        break;
+      }
+      case 'cancel-admin-form': {
+        resetAdminWorkspace();
+        clearActionErrors();
+        render();
+        toast('Administrator form closed', 'info');
+        break;
+      }
+      case 'edit-admin-account': {
+        const account = findAccountById(db, button.dataset.id);
+        if (!account || account.role !== 'admin') throw new Error('That administrator account no longer exists.');
+        if (account.permanent) throw new Error('Permanent administrator accounts are fixed and cannot be changed.');
+        state.adminFormOpen = true;
+        state.adminEditId = account.id;
+        state.adminForm = {
+          name: account.name,
+          username: account.loginId,
+          password: '',
+          active: account.active
+        };
+        clearActionErrors();
+        render();
+        toast('Editing administrator', 'info', account.loginId);
+        break;
+      }
+      case 'delete-admin-account': {
+        const account = findAccountById(db, button.dataset.id);
+        if (!account || account.role !== 'admin') throw new Error('That administrator account no longer exists.');
+        if (account.permanent) throw new Error('Permanent administrator accounts cannot be deleted.');
+        state.confirm = {
+          type: 'delete-admin-account',
+          id: button.dataset.id,
+          title: 'Delete this administrator?',
+          label: `${account.name} (${account.loginId}) will be removed. Permanent administrators are protected and cannot be deleted.`
+        };
+        render();
+        toast('Confirm administrator deletion', 'info', 'Use the confirmation bar above.');
+        break;
+      }
       case 'add-bulk-row': {
         const form = button.closest('form[data-form="bulk-serials"]');
         if (form) readBulkRows(form);
@@ -8851,6 +9050,7 @@ async function handleAction(action, button, event) {
       case 'cancel-password-change': {
         state.passwordChangeOpen = false;
         state.passwordForm = blankPasswordForm();
+        resetAdminWorkspace();
         clearActionErrors();
         render();
         toast('Password change cancelled', 'info');
@@ -8931,7 +9131,7 @@ async function handleAction(action, button, event) {
         break;
       }
       case 'reset-factory': {
-        state.confirm = { type: 'reset', title: 'Reset all app data?', label: 'All student and teacher accounts, serials, settings, requests, and uploaded files will be cleared. Only the two permanent administrator accounts will remain.' };
+        state.confirm = { type: 'reset', title: 'Reset all app data?', label: 'All student and teacher accounts, serials, settings, requests, and uploaded files will be cleared. Only the three permanent administrator accounts will remain.' };
         render();
         toast('Confirm factory reset', 'info', 'Use the confirmation bar above.');
         break;
@@ -9011,6 +9211,18 @@ async function handleConfirmYes() {
       render();
       toast('Serial record deleted', 'success', 'The linked login account was removed. Existing requests were preserved.');
     }
+  } else if (confirmation.type === 'delete-admin-account') {
+    const result = deleteAdminAccount(confirmation.id, state.session);
+    state.confirm = null;
+    if (!result.ok) {
+      state.errors.general = Object.values(result.errors).join(' ');
+      render();
+      toast('Administrator not deleted', 'error', state.errors.general);
+    } else {
+      if (state.adminEditId === confirmation.id) resetAdminWorkspace();
+      render();
+      toast('Administrator deleted', 'success', 'The login account was removed; permanent administrator accounts were preserved.');
+    }
   } else if (confirmation.type === 'reset') {
     await resetFactoryData(state.session);
     state.session = null;
@@ -9026,7 +9238,7 @@ async function handleConfirmYes() {
     state.settingsForm = makeSettingsForm(getDb().settings);
     clearActionErrors();
     render();
-    toast('Factory accounts restored', 'success', 'Only the two permanent administrator accounts remain.');
+    toast('Factory accounts restored', 'success', 'Only the three permanent administrator accounts remain.');
   }
 }
 
@@ -9097,6 +9309,22 @@ async function handleSubmit(event) {
       clearActionErrors();
       render();
       toast('Bulk generation complete', result.successful ? 'success' : 'error', `${result.successful} successful, ${result.unsuccessful} unsuccessful.`);
+    } else if (kind === 'admin-account') {
+      const payload = readAdminForm(form);
+      const wasEditing = Boolean(state.adminEditId);
+      const result = wasEditing
+        ? updateAdminAccount(state.adminEditId, payload, state.session)
+        : createAdminAccount(payload, state.session);
+      if (!result.ok) {
+        state.errors = result.errors;
+        render();
+        toast('Administrator needs attention', 'error', Object.values(result.errors)[0] || 'Check the form.');
+      } else {
+        resetAdminWorkspace();
+        clearActionErrors();
+        render();
+        toast(wasEditing ? 'Administrator updated' : 'Administrator created', 'success', `${result.account.loginId} can now sign in as an administrator.`);
+      }
     } else if (kind === 'change-password') {
       const payload = readPasswordForm(form);
       const result = changeOwnPassword(payload, state.session);
@@ -9155,6 +9383,8 @@ function handleInput(event) {
   if (bulkForm) readBulkRows(bulkForm);
   const passwordForm = target.closest('form[data-form="change-password"]');
   if (passwordForm) readPasswordForm(passwordForm);
+  const adminForm = target.closest('form[data-form="admin-account"]');
+  if (adminForm) readAdminForm(adminForm);
   const settingsForm = target.closest('form[data-form="settings"]');
   if (settingsForm) readSettingsForm(settingsForm);
 }
